@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>RGB Lamp Controller Bluetooth</title>
+<style>
+  body { background: #111; color: white; font-family: Arial, sans-serif; margin:0; padding:0;}
+  header { padding: 1rem; background: #222; text-align: center; font-size: 1.5rem; }
+  nav { display: flex; justify-content: center; background: #333; }
+  nav button {
+    background: none; border:none; color:#ccc; padding: 1rem 2rem; cursor:pointer; font-size: 1rem;
+  }
+  nav button.active { background: #555; color: #fff; }
+  main { padding: 1rem; }
+  
+  #connectionPage, #gridPage, #musicPage { display:none; }
+  #grid {
+    display: grid; grid-template-columns: repeat(8, 40px); grid-gap: 4px; justify-content:center; margin: 20px 0;
+  }
+  .cell {
+    width: 40px; height: 40px; background: black; border-radius: 4px; cursor:pointer;
+  }
+  .color-picker {
+    text-align: center; margin-bottom: 15px;
+  }
+  .color-circle {
+    display: inline-block; width: 35px; height: 35px; border-radius: 50%; margin: 0 10px; cursor: pointer; border: 3px solid transparent;
+  }
+  .color-circle.selected { border-color: yellow; }
+  #musicStatus {
+    margin-top: 20px; text-align:center; font-weight:bold;
+  }
+</style>
+</head>
+<body>
+
+<header>RGB Lamp Controller Bluetooth</header>
+<nav>
+  <button id="btnConnect" class="active">Połączenie</button>
+  <button id="btnGrid">Siatka LED</button>
+  <button id="btnMusic">Mod muzyczny</button>
+</nav>
+
+<main>
+  <section id="connectionPage">
+    <button id="btnRequestBluetooth">Połącz przez Bluetooth</button>
+    <p id="connStatus">Nie połączono</p>
+  </section>
+  
+  <section id="gridPage">
+    <div class="color-picker">
+      <div id="red" class="color-circle selected" style="background:red;"></div>
+      <div id="green" class="color-circle" style="background:green;"></div>
+      <div id="blue" class="color-circle" style="background:blue;"></div>
+    </div>
+    <div id="grid"></div>
+    <button id="btnSendGrid">Wyślij do lampy</button>
+    <p id="sendStatus"></p>
+  </section>
+  
+  <section id="musicPage">
+    <button id="btnStartMusicMod">Start Modu Muzyczny</button>
+    <button id="btnStopMusicMod" disabled>Zatrzymaj Modu Muzyczny</button>
+    <p id="musicStatus">Mod muzyczny nieaktywny</p>
+  </section>
+</main>
+
+<script>
+  // ----- Nawigacja -----
+  const btnConnect = document.getElementById('btnConnect');
+  const btnGrid = document.getElementById('btnGrid');
+  const btnMusic = document.getElementById('btnMusic');
+
+  const connectionPage = document.getElementById('connectionPage');
+  const gridPage = document.getElementById('gridPage');
+  const musicPage = document.getElementById('musicPage');
+
+  function showPage(page) {
+    connectionPage.style.display = 'none';
+    gridPage.style.display = 'none';
+    musicPage.style.display = 'none';
+    page.style.display = 'block';
+  }
+
+  btnConnect.addEventListener('click', () => {
+    showPage(connectionPage);
+    setActiveButton(btnConnect);
+  });
+  btnGrid.addEventListener('click', () => {
+    showPage(gridPage);
+    setActiveButton(btnGrid);
+  });
+  btnMusic.addEventListener('click', () => {
+    showPage(musicPage);
+    setActiveButton(btnMusic);
+  });
+
+  function setActiveButton(activeBtn) {
+    [btnConnect, btnGrid, btnMusic].forEach(b => b.classList.remove('active'));
+    activeBtn.classList.add('active');
+  }
+
+  // Start on connection page
+  showPage(connectionPage);
+
+  // ----- Bluetooth -----
+  let bluetoothDevice;
+  let gattServer;
+  let service;
+  let writeCharacteristic;
+
+  // Ustaw UUID - dostosuj do swojej lampy
+  const SERVICE_UUID = '0000ffe0-0000-1000-8000-00805f9b34fb';  // przykład UUID
+  const CHARACTERISTIC_UUID = '0000ffe1-0000-1000-8000-00805f9b34fb'; // przykład UUID
+
+  const btnRequestBluetooth = document.getElementById('btnRequestBluetooth');
+  const connStatus = document.getElementById('connStatus');
+
+  btnRequestBluetooth.addEventListener('click', async () => {
+    try {
+      connStatus.textContent = 'Wybierz urządzenie Bluetooth...';
+      bluetoothDevice = await navigator.bluetooth.requestDevice({
+        filters: [{ services: [SERVICE_UUID] }]
+      });
+      bluetoothDevice.addEventListener('gattserverdisconnected', onDisconnected);
+
+      connStatus.textContent = 'Łączenie z urządzeniem...';
+      gattServer = await bluetoothDevice.gatt.connect();
+      service = await gattServer.getPrimaryService(SERVICE_UUID);
+      writeCharacteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
+      connStatus.textContent = 'Połączono z: ' + bluetoothDevice.name;
+    } catch (error) {
+      connStatus.textContent = 'Błąd połączenia: ' + error;
+      console.error(error);
+    }
+  });
+
+  function onDisconnected() {
+    connStatus.textContent = 'Urządzenie rozłączone';
+  }
+
+  // ----- Siatka LED -----
+  const grid = document.getElementById('grid');
+  const btnSendGrid = document.getElementById('btnSendGrid');
+  const sendStatus = document.getElementById('sendStatus');
+  const colors = {
+    red: '#FF0000',
+    green: '#00FF00',
+    blue: '#0000FF',
+    black: '#000000'
+  };
+
+  let selectedColor = 'red';
+  const cells = [];
+
+  // Kolory do wyboru
+  document.querySelectorAll('.color-circle').forEach(el => {
+    el.addEventListener('click', () => {
+      document.querySelectorAll('.color-circle').forEach(c => c.classList.remove('selected'));
+      el.classList.add('selected');
+      selectedColor = el.id;
+    });
+  });
+
+  // Stwórz siatkę 8x8
+  for(let i=0; i<64; i++){
+    const cell = document.createElement('div');
+    cell.className = 'cell';
+    cell.style.backgroundColor = colors.black;
+    cell.addEventListener('click', () => {
+      cell.style.backgroundColor = colors[selectedColor];
+    });
+    grid.appendChild(cell);
+    cells.push(cell);
+  }
+
+  // Wyślij kolory do lampy
+  btnSendGrid.addEventListener('click', async () => {
+    if(!writeCharacteristic){
+      sendStatus.textContent = 'Nie połączono z lampą Bluetooth!';
+      return;
+    }
+    try {
+      sendStatus.textContent = 'Wysyłanie danych...';
+      // Przyjmujemy format: dla każdego piksela 3 bajty RGB (0-255)
+      let data = new Uint8Array(64*3);
+      for(let i=0; i<64; i++){
+        const c = cells[i].style.backgroundColor;
+        const rgb = parseRGB(c);
+        data[i*3] = rgb.r;
+        data[i*3+1] = rgb.g;
+        data[i*3+2] = rgb.b;
+      }
+      await writeCharacteristic.writeValue(data);
+      sendStatus.textContent = 'Dane wysłane poprawnie!';
+    } catch(e) {
+      sendStatus.textContent = 'Błąd wysyłania: ' + e;
+      console.error(e);
+    }
+  });
+
+  // Parse 'rgb(255, 0, 0)' to {r:255, g:0, b:0}
+  function parseRGB(rgbString){
+    const result = rgbString.match(/\d+/g);
+    return {
+      r: parseInt(result[0]),
+      g: parseInt(result[1]),
+      b: parseInt(result[2])
+    };
+  }
+
+  // ----- Mod muzyczny -----
+  const btnStartMusicMod = document.getElementById('btnStartMusicMod');
+  const btnStopMusicMod = document.getElementById('btnStopMusicMod');
+  const musicStatus = document.getElementById('musicStatus');
+
+  let audioContext;
+  let analyser;
+  let microphone;
+  let dataArray;
+  let animationFrameId;
+
+  btnStartMusicMod.addEventListener('click', async () => {
+    if(!writeCharacteristic){
+      musicStatus.textContent = 'Najpierw połącz się z lampą przez Bluetooth!';
+      return;
+    }
+    musicStatus.textContent = 'Proszę o dostęp do mikrofonu...';
+    try {
+      audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+      microphone = audioContext.createMediaStreamSource(stream);
+      analyser = audioContext.createAnalyser();
+      analyser.fftSize = 256;
+      const bufferLength = analyser.frequencyBinCount;
+      dataArray = new Uint8Array(bufferLength);
+
+      microphone.connect(analyser);
+      musicStatus.textContent = 'Mod muzyczny aktywny!';
+      btnStartMusicMod.disabled = true;
+      btnStopMusicMod.disabled = false;
+
+      runMusicMod();
+    } catch (e) {
+      musicStatus.textContent = 'Błąd dostępu do mikrofonu: ' + e;
+      console.error(e);
+    }
+  });
+
+  btnStopMusicMod.addEventListener('click', () => {
+    if(audioContext){
+      audioContext.close();
+      audioContext = null;
+    }
+    if(animationFrameId){
+      cancelAnimationFrame(animationFrameId);
+    }
+    musicStatus.textContent = 'Mod muzyczny zatrzymany';
+    btnStartMusicMod.disabled = false;
+    btnStopMusicMod.disabled = true;
+
+    // wyłącz lampę lub zresetuj siatkę?
+    // tutaj zerujemy kolory
+    for(let cell of cells){
+      cell.style.backgroundColor = colors.black;
+    }
+  });
+
+  // Funkcja mrugająca LEDami na podstawie poziomu głośności
+  async function runMusicMod(){
+    analyser.getByteFrequencyData(dataArray);
+    // Liczymy średnią głośność
+    let sum = 0;
+    for(let i=0; i<dataArray.length; i++){
+      sum += dataArray[i];
+    }
+    let avg = sum / dataArray.length;
+
+    // Konwersja głośności na jasność LEDów
+    let brightness = Math.min(255, Math.floor(avg * 2));
+
+    // Ustawiamy kolory na siatce w odcieniu niebieskim o jasności brightness
+    for(let cell of cells){
+      cell.style.backgroundColor = `rgb(0,0,${brightness})`;
+    }
+
+    // Wyślij te dane do lampy (tutaj wysyłamy 64xRGB)
+    if(writeCharacteristic){
+      let data = new Uint8Array(64*3);
+      for(let i=0; i<64; i++){
+        data[i*3] = 0;
+        data[i*3+1] = 0;
+        data[i*3+2] = brightness;
+      }
+      try {
+        await writeCharacteristic.writeValue(data);
+      } catch(e) {
+        console.error('Błąd wysyłania mod muzyczny:', e);
+      }
+    }
+
+    animationFrameId = requestAnimationFrame(runMusicMod);
+  }
+</script>
+
+</body>
+</html>

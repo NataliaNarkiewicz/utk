@@ -110,12 +110,19 @@
 
   showPage(connectionPage); // domyślnie
 
-  // Bluetooth i reszta — jak u Ciebie (skrócone dla czytelności)
-  // (...)
-  let bluetoothDevice, gattServer, service, writeCharacteristic;
-  const SERVICE_UUID = '0000ffe0-0000-1000-8000-00805f9b34fb';
-  const CHARACTERISTIC_UUID = '0000ffe1-0000-1000-8000-00805f9b34fb';
 
+
+
+
+  
+  let bluetoothDevice, gattServer, service, writeCharacteristic;
+  const SERVICE_UUID = '12345678-1234-5678-1234-56789abcdef0';
+  const CHARACTERISTIC_UUID = 'abcdef01-1234-5678-1234-56789abcdef0';
+
+
+
+
+  
   document.getElementById('btnRequestBluetooth').addEventListener('click', async () => {
     try {
       const device = await navigator.bluetooth.requestDevice({ filters: [{ services: [SERVICE_UUID] }] });

@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>RGB Lamp Controller Bluetooth</title>
   <style>
+    /* [CSS – bez zmian] */
     body { background: #111; color: white; font-family: Arial, sans-serif; margin:0; padding:0;}
     header { padding: 1rem; background: #222; text-align: center; font-size: 1.5rem; }
     nav { display: flex; justify-content: center; background: #333; flex-wrap: wrap; }
@@ -79,7 +80,6 @@
 </main>
 
 <script>
-  // Nawigacja
   const btnConnect = document.getElementById('btnConnect');
   const btnGrid = document.getElementById('btnGrid');
   const btnMusic = document.getElementById('btnMusic');
@@ -108,24 +108,18 @@
   btnMusic.addEventListener('click', () => { showPage(musicPage); setActiveButton(btnMusic); });
   btnMods.addEventListener('click', () => { showPage(modsPage); setActiveButton(btnMods); });
 
-  showPage(connectionPage); // domyślnie
+  showPage(connectionPage);
 
-
-
-
-
-  
   let bluetoothDevice, gattServer, service, writeCharacteristic;
   const SERVICE_UUID = '12345678-1234-5678-1234-56789abcdef0';
   const CHARACTERISTIC_UUID = 'abcdef01-1234-5678-1234-56789abcdef0';
 
-
-
-
-  
   document.getElementById('btnRequestBluetooth').addEventListener('click', async () => {
     try {
-      const device = await navigator.bluetooth.requestDevice({ filters: [{ services: [SERVICE_UUID] }] });
+      const device = await navigator.bluetooth.requestDevice({
+        acceptAllDevices: true,
+        optionalServices: [SERVICE_UUID]
+      });
       const server = await device.gatt.connect();
       const srv = await server.getPrimaryService(SERVICE_UUID);
       const characteristic = await srv.getCharacteristic(CHARACTERISTIC_UUID);
@@ -139,7 +133,6 @@
     }
   });
 
-  // Siatka i kolory
   const grid = document.getElementById('grid');
   const btnSendGrid = document.getElementById('btnSendGrid');
   const sendStatus = document.getElementById('sendStatus');
@@ -213,7 +206,7 @@
     let on = false;
     effectInterval = setInterval(() => {
       on = !on;
-      sendUniformColor(on ? 255 : 0, 0, on ? 255 : 0); // fioletowy blink
+      sendUniformColor(on ? 255 : 0, 0, on ? 255 : 0);
     }, 500);
   }
 
@@ -222,7 +215,7 @@
     let i = 0, dir = 1;
     effectInterval = setInterval(() => {
       let val = Math.floor(128 + 127 * Math.sin(i * 0.1));
-      sendUniformColor(val, 0, val); // puls fioletowy
+      sendUniformColor(val, 0, val);
       i += dir;
     }, 50);
   }
@@ -280,7 +273,6 @@
 
   function startHeart() {
     stopEffects();
-    // Serce: prosty wzór binarny 8x8
     const pattern = [
       0,255,0,0,0,0,255,0,
       255,255,0,0,0,0,255,255,

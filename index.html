@@ -35,6 +35,16 @@
       margin: 5px; padding: 0.5rem 1rem; background: #444; color: white; border: none; border-radius: 4px;
       cursor: pointer;
     }
+    #modTextDisplay {
+      margin-top: 15px;
+      font-size: 1.2rem;
+      text-align: center;
+      min-height: 30px;
+      color: #0ff;
+      font-weight: bold;
+      font-family: monospace;
+      letter-spacing: 0.1em;
+    }
   </style>
 </head>
 <body>
@@ -76,6 +86,7 @@
     <button onclick="startPulse()">Pulsowanie</button>
     <button onclick="startRandom()">Losowe błyski</button>
     <button onclick="stopEffects()">Zatrzymaj efekty</button>
+    <div id="modTextDisplay"></div>
   </section>
 </main>
 
@@ -116,10 +127,6 @@
   
   const SERVICE_UUID = '12345678-1234-1234-1234-1234567890ab';
   const CHARACTERISTIC_UUID = '87654321-4321-4321-4321-0987654321ba';
-
-
-
-  
 
   document.getElementById('btnRequestBluetooth').addEventListener('click', async () => {
     try {
@@ -192,9 +199,12 @@
 
   // --- MODY LED ---
   let effectInterval;
+  let textInterval;
 
   function stopEffects() {
     clearInterval(effectInterval);
+    clearInterval(textInterval);
+    modTextDisplay.textContent = '';
   }
 
   function sendUniformColor(r, g, b) {
@@ -301,6 +311,30 @@
       writeCharacteristic?.writeValue(data).catch(console.error);
     }, 500);
   }
+
+  // --- Nowa funkcja do wyświetlania napisu ---
+  const modTextDisplay = document.getElementById('modTextDisplay');
+
+  function displayTextByLetter(text, delay = 400) {
+    stopEffects();
+    modTextDisplay.textContent = '';
+    let index = 0;
+    textInterval = setInterval(() => {
+      if (index < text.length) {
+        modTextDisplay.textContent += text[index];
+        index++;
+      } else {
+        clearInterval(textInterval);
+      }
+    }, delay);
+  }
+
+  // Dodaj przycisk do startu napisu do sekcji modów
+  // Możesz też wywołać go automatycznie przy wejściu na sekcję modów:
+  btnMods.addEventListener('click', () => {
+    displayTextByLetter('LENA 3 NATALIA 5 KONIEC DZIĘKUJEMY', 400);
+  });
+
 </script>
 </body>
 </html>

@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>RGB Lamp Controller Bluetooth</title>
   <style>
-    /* [CSS – bez zmian] */
     body { background: #111; color: white; font-family: Arial, sans-serif; margin:0; padding:0;}
     header { padding: 1rem; background: #222; text-align: center; font-size: 1.5rem; }
     nav { display: flex; justify-content: center; background: #333; flex-wrap: wrap; }
@@ -112,33 +111,38 @@
 
   let bluetoothDevice, gattServer, service, writeCharacteristic;
 
-
-  
   const SERVICE_UUID = '12345678-1234-1234-1234-1234567890ab';
   const CHARACTERISTIC_UUID = '87654321-4321-4321-4321-0987654321ba';
 
-
-
-  
-
+  // --- POPRAWIONY FRAGMENT ---
   document.getElementById('btnRequestBluetooth').addEventListener('click', async () => {
     try {
       const device = await navigator.bluetooth.requestDevice({
         acceptAllDevices: true,
         optionalServices: [SERVICE_UUID]
       });
+
+      if (!device.gatt) {
+        document.getElementById('connStatus').textContent = "Urządzenie nie obsługuje GATT!";
+        return;
+      }
+
       const server = await device.gatt.connect();
       const srv = await server.getPrimaryService(SERVICE_UUID);
       const characteristic = await srv.getCharacteristic(CHARACTERISTIC_UUID);
+
       bluetoothDevice = device;
       gattServer = server;
       service = srv;
       writeCharacteristic = characteristic;
-      document.getElementById('connStatus').textContent = "Połączono z: " + device.name;
+
+      document.getElementById('connStatus').textContent = "Połączono z: " + (device.name || "Nieznane urządzenie");
     } catch (e) {
-      document.getElementById('connStatus').textContent = "Błąd połączenia: " + e;
+      document.getElementById('connStatus').textContent = "Błąd połączenia: " + e.message;
+      console.error(e);
     }
   });
+  // --- KONIEC POPRAWKI ---
 
   const grid = document.getElementById('grid');
   const btnSendGrid = document.getElementById('btnSendGrid');
@@ -181,7 +185,7 @@
       await writeCharacteristic.writeValue(data);
       sendStatus.textContent = 'Dane wysłane!';
     } catch (e) {
-      sendStatus.textContent = 'Błąd: ' + e;
+      sendStatus.textContent = 'Błąd: ' + e.message;
     }
   });
 
@@ -219,11 +223,11 @@
 
   function startPulse() {
     stopEffects();
-    let i = 0, dir = 1;
+    let i = 0;
     effectInterval = setInterval(() => {
       let val = Math.floor(128 + 127 * Math.sin(i * 0.1));
       sendUniformColor(val, 0, val);
-      i += dir;
+      i++;
     }, 50);
   }
 

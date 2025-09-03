@@ -311,8 +311,8 @@
 
   if (SpeechRecognition) {
     const voiceBtn = document.createElement("button");
-    voiceBtn.textContent = "Sterowanie głosem 🎤";
-    voiceBtn.style.marginTop = "15px";
+    voiceBtn.textContent = "Sterowanie głosem ";
+   voiceBtn.style.marginTop = "15px";
     connectionPage.appendChild(voiceBtn);
 
     recognition = new SpeechRecognition();
@@ -321,7 +321,7 @@
 
     voiceBtn.addEventListener("click", () => {
       recognition.start();
-      document.getElementById('connStatus').textContent = "🎤 Nasłuchiwanie...";
+      document.getElementById('connStatus').textContent = "Nasłuchiwanie...";
     });
 
     recognition.onresult = (event) => {
@@ -335,10 +335,6 @@
       else if (transcript.includes("fioletowy") || transcript.includes("purpurowy")) sendUniformColor(128, 0, 128);
       else if (transcript.includes("pomarańczowy")) sendUniformColor(255, 165, 0);
       else if (transcript.includes("tęcza")) startRainbow();
-      else if (transcript.includes("miganie")) startBlink();
-      else if (transcript.includes("serce")) startHeart();
-      else if (transcript.includes("pulsowanie")) startPulse();
-      else if (transcript.includes("losowe")) startRandom();
       else if (transcript.includes("stop")) stopEffects();
     };
 
@@ -347,6 +343,7 @@
     };
   } else {
     console.warn("Web Speech API nie jest wspierane w tej przeglądarce.");
+  }
   }
 </script>
 </body>

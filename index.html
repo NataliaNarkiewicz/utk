@@ -304,6 +304,49 @@
       }
       writeCharacteristic?.writeValue(data).catch(console.error);
     }, 500);
+
+// --- STEROWANIE GŁOSEM ---
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let recognition;
+
+  if (SpeechRecognition) {
+    const voiceBtn = document.createElement("button");
+    voiceBtn.textContent = "Sterowanie głosem 🎤";
+    voiceBtn.style.marginTop = "15px";
+    connectionPage.appendChild(voiceBtn);
+
+    recognition = new SpeechRecognition();
+    recognition.lang = "pl-PL";
+    recognition.continuous = false;
+
+    voiceBtn.addEventListener("click", () => {
+      recognition.start();
+      document.getElementById('connStatus').textContent = "🎤 Nasłuchiwanie...";
+    });
+
+    recognition.onresult = (event) => {
+      const transcript = event.results[0][0].transcript.toLowerCase();
+      document.getElementById('connStatus').textContent = "Powiedziano: " + transcript;
+
+      if (transcript.includes("czerwony")) sendUniformColor(255, 0, 0);
+      else if (transcript.includes("zielony")) sendUniformColor(0, 255, 0);
+      else if (transcript.includes("niebieski")) sendUniformColor(0, 0, 255);
+      else if (transcript.includes("żółty")) sendUniformColor(255, 255, 0);
+      else if (transcript.includes("fioletowy") || transcript.includes("purpurowy")) sendUniformColor(128, 0, 128);
+      else if (transcript.includes("pomarańczowy")) sendUniformColor(255, 165, 0);
+      else if (transcript.includes("tęcza")) startRainbow();
+      else if (transcript.includes("miganie")) startBlink();
+      else if (transcript.includes("serce")) startHeart();
+      else if (transcript.includes("pulsowanie")) startPulse();
+      else if (transcript.includes("losowe")) startRandom();
+      else if (transcript.includes("stop")) stopEffects();
+    };
+
+    recognition.onerror = (event) => {
+      document.getElementById('connStatus').textContent = "Błąd rozpoznawania: " + event.error;
+    };
+  } else {
+    console.warn("Web Speech API nie jest wspierane w tej przeglądarce.");
   }
 </script>
 </body>

@@ -96,6 +96,7 @@ button { padding:0.5rem 1rem; margin:5px; background:#444; color:white; border:n
 <section id="voicePage">
 <h3>Sterowanie głosem 🎤</h3>
 <button id="btnVoiceStart">Start nasłuchiwania</button>
+<button id="btnVoiceStop">Stop nasłuchiwania</button>
 <p id="voiceStatus">Nieaktywny</p>
 </section>
 
@@ -143,14 +144,18 @@ const SERVICE_UUID='12345678-1234-1234-1234-1234567890ab';
 const CHAR_UUID='87654321-4321-4321-4321-0987654321ba';
 
 document.getElementById('btnRequestBluetooth').onclick=async()=>{
-  const device=await navigator.bluetooth.requestDevice({
-    acceptAllDevices:true,
-    optionalServices:[SERVICE_UUID]
-  });
-  const server=await device.gatt.connect();
-  const service=await server.getPrimaryService(SERVICE_UUID);
-  writeCharacteristic=await service.getCharacteristic(CHAR_UUID);
-  document.getElementById('connStatus').textContent="Połączono!";
+  try {
+    const device=await navigator.bluetooth.requestDevice({
+      acceptAllDevices:true,
+      optionalServices:[SERVICE_UUID]
+    });
+    const server=await device.gatt.connect();
+    const service=await server.getPrimaryService(SERVICE_UUID);
+    writeCharacteristic=await service.getCharacteristic(CHAR_UUID);
+    document.getElementById('connStatus').textContent="Połączono!";
+  } catch(e){
+    document.getElementById('connStatus').textContent="Błąd: "+e.message;
+  }
 };
 
 /* ---------- GRID ---------- */
@@ -251,10 +256,20 @@ recog.onresult=e=>{
   if(text.includes('róż')) fill('pink');
 };
 
-document.getElementById('btnVoiceStart').onclick=()=>{
-  navigator.mediaDevices.getUserMedia({audio:true});
-  recog.start();
-  document.getElementById('voiceStatus').textContent="Nasłuchiwanie...";
+/* Start / Stop nasłuchiwania */
+document.getElementById('btnVoiceStart').onclick=async()=>{
+  try{
+    await navigator.mediaDevices.getUserMedia({audio:true});
+    recog.start();
+    document.getElementById('voiceStatus').textContent="Nasłuchiwanie...";
+  } catch(e){
+    document.getElementById('voiceStatus').textContent="Błąd mikrofonu: "+e.message;
+  }
+};
+
+document.getElementById('btnVoiceStop').onclick=()=>{
+  recog.stop();
+  document.getElementById('voiceStatus').textContent="Zatrzymano nasłuchiwanie";
 };
 </script>
 

@@ -1,191 +1,262 @@
 <!DOCTYPE html>
 <html lang="pl">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>RGB Lamp Controller Bluetooth</title>
-  <style>
-    body { background: #111; color: white; font-family: Arial, sans-serif; margin:0; padding:0;}
-    header { padding: 1rem; background: #222; text-align: center; font-size: 1.5rem; }
-    nav { display: flex; justify-content: center; background: #333; flex-wrap: wrap; }
-    nav button {
-      background: none; border:none; color:#ccc; padding: 1rem 2rem; cursor:pointer; font-size: 1rem;
-    }
-    nav button.active { background: #555; color: #fff; }
-    main { padding: 1rem; }
-    #connectionPage, #gridPage, #musicPage, #modsPage { display:none; }
-    #grid {
-      display: grid; 
-      grid-template-columns: repeat(9, 40px); /* changed to 9 */
-      grid-gap: 4px; 
-      justify-content:center; 
-      margin: 20px 0;
-    }
-    .cell {
-      width: 40px; height: 40px; background: black; border-radius: 4px; cursor:pointer;
-    }
-    .color-picker {
-      text-align: center; margin-bottom: 15px;
-    }
-    .color-circle {
-      display: inline-block; width: 35px; height: 35px; border-radius: 50%; margin: 0 10px; cursor: pointer; border: 3px solid transparent;
-    }
-    .color-circle.selected { border-color: yellow; }
-    #musicStatus {
-      margin-top: 20px; text-align:center; font-weight:bold;
-    }
-    #modsPage button {
-      margin: 5px; padding: 0.5rem 1rem; background: #444; color: white; border: none; border-radius: 4px;
-      cursor: pointer;
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RGB Lamp Controller Bluetooth</title>
+
+<style>
+body { background:#111; color:white; font-family:Arial; margin:0 }
+header { background:#222; padding:1rem; text-align:center; font-size:1.5rem }
+nav { display:flex; justify-content:center; background:#333; flex-wrap:wrap }
+nav button { background:none; border:none; color:#ccc; padding:1rem 2rem; cursor:pointer }
+nav button.active { background:#555; color:white }
+main { padding:1rem }
+
+section { display:none }
+
+#grid {
+  display:grid;
+  grid-template-columns:repeat(9,40px);
+  gap:4px;
+  justify-content:center;
+}
+
+.cell {
+  width:40px;
+  height:40px;
+  background:black;
+  border-radius:4px;
+  cursor:pointer;
+}
+
+.color-circle {
+  width:35px;
+  height:35px;
+  border-radius:50%;
+  display:inline-block;
+  margin:5px;
+  cursor:pointer;
+  border:3px solid transparent;
+}
+.color-circle.selected { border-color:yellow }
+
+button { padding:0.5rem 1rem; margin:5px; background:#444; color:white; border:none; border-radius:4px }
+</style>
 </head>
+
 <body>
+
 <header>RGB Lamp Controller Bluetooth</header>
+
 <nav>
-  <button id="btnConnect" class="active">Połączenie</button>
-  <button id="btnGrid">Siatka LED</button>
-  <button id="btnMusic">Mod muzyczny</button>
-  <button id="btnMods">Mody</button>
+<button id="btnConnect" class="active">Połączenie</button>
+<button id="btnGrid">Siatka LED</button>
+<button id="btnMusic">Muzyka</button>
+<button id="btnMods">Mody</button>
+<button id="btnVoice">Głos</button>
 </nav>
+
 <main>
-  <section id="connectionPage">
-    <button id="btnRequestBluetooth">Połącz przez Bluetooth</button>
-    <p id="connStatus">Nie połączono</p>
-  </section>
-  <section id="gridPage">
-    <div class="color-picker">
-      <div id="red" class="color-circle selected" style="background:red;"></div>
-      <div id="green" class="color-circle" style="background:green;"></div>
-      <div id="blue" class="color-circle" style="background:blue;"></div>
-      <div id="yellow" class="color-circle" style="background:yellow;"></div>
-      <div id="purple" class="color-circle" style="background:purple;"></div>
-      <div id="orange" class="color-circle" style="background:orange;"></div>
-    </div>
-    <div id="grid"></div>
-    <button id="btnSendGrid">Wyślij do lampy</button>
-    <p id="sendStatus"></p>
-  </section>
-  <section id="musicPage">
-    <button id="btnStartMusicMod">Start Modu Muzyczny</button>
-    <button id="btnStopMusicMod" disabled>Zatrzymaj Modu Muzyczny</button>
-    <p id="musicStatus">Mod muzyczny nieaktywny</p>
-  </section>
-  <section id="modsPage">
-    <h3>Wybierz efekt LED</h3>
-    <button onclick="startBlink()">Miganie</button>
-    <button onclick="startHeart()">Serce</button>
-    <button onclick="startRainbow()">Tęcza</button>
-    <button onclick="startPulse()">Pulsowanie</button>
-    <button onclick="startRandom()">Losowe błyski</button>
-    <button onclick="stopEffects()">Zatrzymaj efekty</button>
-  </section>
+
+<section id="connectionPage">
+<button id="btnRequestBluetooth">Połącz Bluetooth</button>
+<p id="connStatus">Nie połączono</p>
+</section>
+
+<section id="gridPage">
+<div>
+<div class="color-circle selected" id="red" style="background:red"></div>
+<div class="color-circle" id="green" style="background:green"></div>
+<div class="color-circle" id="blue" style="background:blue"></div>
+<div class="color-circle" id="yellow" style="background:yellow"></div>
+<div class="color-circle" id="purple" style="background:purple"></div>
+<div class="color-circle" id="orange" style="background:orange"></div>
+<div class="color-circle" id="pink" style="background:pink"></div>
+</div>
+
+<div id="grid"></div>
+<button id="btnSendGrid">Wyślij do lampy</button>
+<p id="sendStatus"></p>
+</section>
+
+<section id="musicPage">
+<p>Mod muzyczny (do rozbudowy)</p>
+</section>
+
+<section id="modsPage">
+<h3>Efekty LED</h3>
+<button onclick="startBlink()">Miganie</button>
+<button onclick="startRainbow()">Tęcza</button>
+<button onclick="startPulse()">Pulsowanie</button>
+<button onclick="startRandom()">Losowe</button>
+<button onclick="stopEffects()">Stop</button>
+</section>
+
+<section id="voicePage">
+<h3>Sterowanie głosem 🎤</h3>
+<button id="btnVoiceStart">Start nasłuchiwania</button>
+<p id="voiceStatus">Nieaktywny</p>
+</section>
+
 </main>
 
 <script>
-  const NUM_LEDS = 81; /* changed */
+const NUM_LEDS = 81;
+const colors = {
+  red:[255,0,0],
+  green:[0,255,0],
+  blue:[0,0,255],
+  yellow:[255,255,0],
+  orange:[255,165,0],
+  purple:[128,0,128],
+  pink:[255,20,147],
+  black:[0,0,0]
+};
 
-  const btnConnect = document.getElementById('btnConnect');
-  const btnGrid = document.getElementById('btnGrid');
-  const btnMusic = document.getElementById('btnMusic');
-  const btnMods = document.getElementById('btnMods');
+let writeCharacteristic = null;
+let cells = [];
+let selectedColor = 'red';
+let effectInterval = null;
 
-  const connectionPage = document.getElementById('connectionPage');
-  const gridPage = document.getElementById('gridPage');
-  const musicPage = document.getElementById('musicPage');
-  const modsPage = document.getElementById('modsPage');
+/* ---------- NAWIGACJA ---------- */
+const pages = {
+  btnConnect:'connectionPage',
+  btnGrid:'gridPage',
+  btnMusic:'musicPage',
+  btnMods:'modsPage',
+  btnVoice:'voicePage'
+};
 
-  function showPage(page) {
-    connectionPage.style.display = 'none';
-    gridPage.style.display = 'none';
-    musicPage.style.display = 'none';
-    modsPage.style.display = 'none';
-    page.style.display = 'block';
+Object.keys(pages).forEach(id=>{
+  document.getElementById(id).onclick=()=>{
+    document.querySelectorAll('section').forEach(s=>s.style.display='none');
+    document.getElementById(pages[id]).style.display='block';
+    document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
   }
+});
+document.getElementById('connectionPage').style.display='block';
 
-  function setActiveButton(activeBtn) {
-    [btnConnect, btnGrid, btnMusic, btnMods].forEach(b => b.classList.remove('active'));
-    activeBtn.classList.add('active');
-  }
+/* ---------- BLUETOOTH ---------- */
+const SERVICE_UUID='12345678-1234-1234-1234-1234567890ab';
+const CHAR_UUID='87654321-4321-4321-4321-0987654321ba';
 
-  btnConnect.addEventListener('click', () => { showPage(connectionPage); setActiveButton(btnConnect); });
-  btnGrid.addEventListener('click', () => { showPage(gridPage); setActiveButton(btnGrid); });
-  btnMusic.addEventListener('click', () => { showPage(musicPage); setActiveButton(btnMusic); });
-  btnMods.addEventListener('click', () => { showPage(modsPage); setActiveButton(btnMods); });
-
-  showPage(connectionPage);
-
-  let bluetoothDevice, gattServer, service, writeCharacteristic;
-
-  const SERVICE_UUID = '12345678-1234-1234-1234-1234567890ab';
-  const CHARACTERISTIC_UUID = '87654321-4321-4321-4321-0987654321ba';
-
-  document.getElementById('btnRequestBluetooth').addEventListener('click', async () => {
-    try {
-      const device = await navigator.bluetooth.requestDevice({
-        acceptAllDevices: true,
-        optionalServices: [SERVICE_UUID]
-      });
-
-      const server = await device.gatt.connect();
-      const srv = await server.getPrimaryService(SERVICE_UUID);
-      const characteristic = await srv.getCharacteristic(CHARACTERISTIC_UUID);
-
-      writeCharacteristic = characteristic;
-      document.getElementById('connStatus').textContent = "Połączono!";
-    } catch (e) {
-      document.getElementById('connStatus').textContent = "Błąd: " + e.message;
-    }
+document.getElementById('btnRequestBluetooth').onclick=async()=>{
+  const device=await navigator.bluetooth.requestDevice({
+    acceptAllDevices:true,
+    optionalServices:[SERVICE_UUID]
   });
+  const server=await device.gatt.connect();
+  const service=await server.getPrimaryService(SERVICE_UUID);
+  writeCharacteristic=await service.getCharacteristic(CHAR_UUID);
+  document.getElementById('connStatus').textContent="Połączono!";
+};
 
-  const grid = document.getElementById('grid');
-  const btnSendGrid = document.getElementById('btnSendGrid');
-  const sendStatus = document.getElementById('sendStatus');
+/* ---------- GRID ---------- */
+const grid=document.getElementById('grid');
+for(let i=0;i<NUM_LEDS;i++){
+  const c=document.createElement('div');
+  c.className='cell';
+  c.onclick=()=>c.style.background=`rgb(${colors[selectedColor]})`;
+  grid.appendChild(c);
+  cells.push(c);
+}
 
-  const colors = {
-    red: '#FF0000', green: '#00FF00', blue: '#0000FF',
-    yellow: '#FFFF00', purple: '#800080', orange: '#FFA500', black: '#000000'
+document.querySelectorAll('.color-circle').forEach(c=>{
+  c.onclick=()=>{
+    document.querySelectorAll('.color-circle').forEach(x=>x.classList.remove('selected'));
+    c.classList.add('selected');
+    selectedColor=c.id;
   };
+});
 
-  let selectedColor = 'red', cells = [];
+document.getElementById('btnSendGrid').onclick=sendGrid;
 
-  document.querySelectorAll('.color-circle').forEach(el => {
-    el.addEventListener('click', () => {
-      document.querySelectorAll('.color-circle').forEach(c => c.classList.remove('selected'));
-      el.classList.add('selected');
-      selectedColor = el.id;
-    });
+function sendGrid(){
+  if(!writeCharacteristic) return;
+  let data=new Uint8Array(NUM_LEDS*3);
+  cells.forEach((c,i)=>{
+    let rgb=c.style.background.match(/\d+/g)||[0,0,0];
+    data.set(rgb.map(Number),i*3);
   });
+  writeCharacteristic.writeValue(data);
+}
 
-  for (let i = 0; i < NUM_LEDS; i++) { /* changed */
-    const cell = document.createElement('div');
-    cell.className = 'cell';
-    cell.style.backgroundColor = colors.black;
-    cell.addEventListener('click', () => {
-      cell.style.backgroundColor = colors[selectedColor];
+/* ---------- MODY ---------- */
+function stopEffects(){ clearInterval(effectInterval); }
+
+function fill(color){
+  cells.forEach(c=>c.style.background=`rgb(${colors[color]})`);
+  sendGrid();
+}
+
+function startBlink(){
+  stopEffects();
+  let on=true;
+  effectInterval=setInterval(()=>{
+    fill(on?'red':'black');
+    on=!on;
+  },500);
+}
+
+function startRainbow(){
+  stopEffects();
+  let cols=Object.keys(colors);
+  let i=0;
+  effectInterval=setInterval(()=>fill(cols[i++%cols.length]),300);
+}
+
+function startPulse(){
+  stopEffects();
+  let v=0,dir=1;
+  effectInterval=setInterval(()=>{
+    let col=[v,0,255-v];
+    cells.forEach(c=>c.style.background=`rgb(${col})`);
+    sendGrid();
+    v+=dir*15;
+    if(v>=255||v<=0) dir*=-1;
+  },100);
+}
+
+function startRandom(){
+  stopEffects();
+  effectInterval=setInterval(()=>{
+    cells.forEach(c=>{
+      let r=Math.random()*255|0;
+      let g=Math.random()*255|0;
+      let b=Math.random()*255|0;
+      c.style.background=`rgb(${r},${g},${b})`;
     });
-    grid.appendChild(cell);
-    cells.push(cell);
-  }
+    sendGrid();
+  },300);
+}
 
-  btnSendGrid.addEventListener('click', async () => {
-    if (!writeCharacteristic) return sendStatus.textContent = 'Nie połączono!';
-    let data = new Uint8Array(NUM_LEDS * 3); /* changed */
-    for (let i = 0; i < NUM_LEDS; i++) { /* changed */
-      let rgb = parseRGB(cells[i].style.backgroundColor);
-      data[i * 3] = rgb.r;
-      data[i * 3 + 1] = rgb.g;
-      data[i * 3 + 2] = rgb.b;
-    }
-    await writeCharacteristic.writeValue(data);
-    sendStatus.textContent = 'Dane wysłane!';
-  });
+/* ---------- GŁOS ---------- */
+const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
+const recog=new SpeechRecognition();
+recog.lang='pl-PL';
+recog.continuous=true;
 
-  function parseRGB(rgbString) {
-    const result = rgbString.match(/\d+/g);
-    return { r: parseInt(result[0]), g: parseInt(result[1]), b: parseInt(result[2]) };
-  }
+recog.onresult=e=>{
+  const text=e.results[e.results.length-1][0].transcript.toLowerCase();
+  document.getElementById('voiceStatus').textContent=text;
 
+  if(text.includes('czerw')) fill('red');
+  if(text.includes('niebies')) fill('blue');
+  if(text.includes('zielon')) fill('green');
+  if(text.includes('żół')) fill('yellow');
+  if(text.includes('pomara')) fill('orange');
+  if(text.includes('fiolet')) fill('purple');
+  if(text.includes('róż')) fill('pink');
+};
+
+document.getElementById('btnVoiceStart').onclick=()=>{
+  navigator.mediaDevices.getUserMedia({audio:true});
+  recog.start();
+  document.getElementById('voiceStatus').textContent="Nasłuchiwanie...";
+};
 </script>
+
 </body>
 </html>

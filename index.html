@@ -99,7 +99,7 @@ input[type=range]{ margin:5px; }
 <section id="voicePage">
 <h3>Sterowanie głosem 🎤</h3>
 <button id="btnVoiceStart">Start nasłuchiwania</button>
-<button id="btnVoiceStop">Stop nasłuchiwania</button>
+<button id="btnVoiceStop" disabled>Stop nasłuchiwania</button>
 <p id="voiceStatus">Nieaktywny</p>
 </section>
 
@@ -168,13 +168,18 @@ document.getElementById('btnRequestBluetooth').onclick=async()=>{
     document.getElementById('connStatus').textContent="Błąd: "+e.message;
   }
 };
-
-/* ---------- GRID ---------- */
+  /* ---------- GRID TWORZENIE ---------- */
 const grid=document.getElementById('grid');
 for(let i=0;i<NUM_LEDS;i++){
   const c=document.createElement('div');
   c.className='cell';
-  c.onclick=()=>c.style.background=`rgb(${colors[selectedColor][0]*brightness/255|0},${colors[selectedColor][1]*brightness/255|0},${colors[selectedColor][2]*brightness/255|0})`;
+  c.dataset.baseColor = '0,0,0';
+  c.onclick=()=>{
+    const base = colors[selectedColor];
+    c.dataset.baseColor = base.join(',');
+    const scaled = base.map(v=>v*brightness/255|0);
+    c.style.background=`rgb(${scaled[0]},${scaled[1]},${scaled[2]})`;
+  };
   grid.appendChild(c);
   cells.push(c);
 }
@@ -194,14 +199,16 @@ function sendGrid(){
   if(!writeCharacteristic) return;
   let data=new Uint8Array(NUM_LEDS*3);
   cells.forEach((c,i)=>{
-    let rgb=c.style.background.match(/\d+/g).map(Number);
-    data.set(rgb,i*3);
+    let rgb=c.style.background.match(/\d+/g);
+    if(!rgb) rgb=[0,0,0];
+    data.set(rgb.map(Number),i*3);
   });
   writeCharacteristic.writeValue(data);
 }
 
 function clearGrid(){
   cells.forEach(c=>{
+    c.dataset.baseColor = '0,0,0';
     c.style.background='rgb(0,0,0)';
   });
   sendGrid();
@@ -211,8 +218,12 @@ function clearGrid(){
 function stopEffects(){ clearInterval(effectInterval); }
 
 function fill(color){
-  const col = colors[color].map(v=>v*brightness/255|0);
-  cells.forEach(c=>c.style.background=`rgb(${col})`);
+  const base = colors[color];
+  const col = base.map(v=>v*brightness/255|0);
+  cells.forEach(c=>{
+    c.dataset.baseColor = base.join(',');
+    c.style.background=`rgb(${col[0]},${col[1]},${col[2]})`;
+  });
   sendGrid();
 }
 
@@ -236,8 +247,12 @@ function startPulse(){
   stopEffects();
   let v=0,dir=1;
   effectInterval=setInterval(()=>{
-    let col=[v,0,255-v].map(x=>x*brightness/255|0);
-    cells.forEach(c=>c.style.background=`rgb(${col})`);
+    let base=[v,0,255-v];
+    const col=base.map(x=>x*brightness/255|0);
+    cells.forEach(c=>{
+      c.dataset.baseColor = base.join(',');
+      c.style.background=`rgb(${col[0]},${col[1]},${col[2]})`;
+    });
     sendGrid();
     v+=dir*15;
     if(v>=255||v<=0) dir*=-1;
@@ -251,6 +266,7 @@ function startRandom(){
       let r=Math.random()*255|0;
       let g=Math.random()*255|0;
       let b=Math.random()*255|0;
+      c.dataset.baseColor = `${r},${g},${b}`;
       r=r*brightness/255|0; g=g*brightness/255|0; b=b*brightness/255|0;
       c.style.background=`rgb(${r},${g},${b})`;
     });
@@ -259,50 +275,66 @@ function startRandom(){
 }
 
 /* ---------- GŁOS ---------- */
-const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
-const recog=new SpeechRecognition();
-recog.lang='pl-PL';
-recog.continuous=true;
-recog.interimResults=true;
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+let recog = null;
+let isListening = false;
 
-recog.onresult=e=>{
-  const text=e.results[e.results.length-1][0].transcript.toLowerCase();
-  document.getElementById('voiceStatus').textContent=text;
-
-  if(text.includes('czerw')) fill('red');
-  else if(text.includes('niebies')) fill('blue');
-  else if(text.includes('zielon')) fill('green');
-  else if(text.includes('żół')) fill('yellow');
-  else if(text.includes('pomara')) fill('orange');
-  else if(text.includes('fiolet')) fill('purple');
-  else if(text.includes('róż')) fill('pink');
-};
-
-/* Automatyczny restart po zakończeniu, żeby działało ciągle */
-recog.onend = () => {
-  if(document.getElementById('btnVoiceStart').disabled) return;
-  recog.start();
-};
-
-/* Start / Stop nasłuchiwania */
-document.getElementById('btnVoiceStart').onclick=async()=>{
-  try{
-    await navigator.mediaDevices.getUserMedia({audio:true});
-    recog.start();
-    document.getElementById('btnVoiceStart').disabled = true;
-    document.getElementById('btnVoiceStop').disabled = false;
-    document.getElementById('voiceStatus').textContent="Nasłuchiwanie...";
-  } catch(e){
-    document.getElementById('voiceStatus').textContent="Błąd mikrofonu: "+e.message;
-  }
-};
-
-document.getElementById('btnVoiceStop').onclick=()=>{
-  recog.stop();
-  document.getElementById('btnVoiceStart').disabled = false;
+if(!SpeechRecognition){
+  document.getElementById('voiceStatus').textContent = "Twoja przeglądarka nie obsługuje rozpoznawania mowy.";
+  document.getElementById('btnVoiceStart').disabled = true;
   document.getElementById('btnVoiceStop').disabled = true;
-  document.getElementById('voiceStatus').textContent="Zatrzymano nasłuchiwanie";
-};
+} else {
+  recog = new SpeechRecognition();
+  recog.lang='pl-PL';
+  recog.continuous=true;
+  recog.interimResults=false;
+
+  recog.onresult=e=>{
+    const result = e.results[e.resultIndex];
+    if(!result || !result[0]) return;
+    const text=result[0].transcript.toLowerCase();
+    document.getElementById('voiceStatus').textContent="Rozpoznano: " + text;
+
+    if(text.includes('czerw')) fill('red');
+    else if(text.includes('niebies')) fill('blue');
+    else if(text.includes('zielon')) fill('green');
+    else if(text.includes('żół') || text.includes('zol')) fill('yellow');
+    else if(text.includes('pomara')) fill('orange');
+    else if(text.includes('fiolet')) fill('purple');
+    else if(text.includes('róż') || text.includes('roz')) fill('pink');
+  };
+
+  recog.onerror = e => {
+    document.getElementById('voiceStatus').textContent = "Błąd rozpoznawania: " + e.error;
+  };
+
+  recog.onend = () => {
+    if(isListening){
+      try { recog.start(); } catch(e){}
+    }
+  };
+
+  document.getElementById('btnVoiceStart').onclick=async()=>{
+    try{
+      await navigator.mediaDevices.getUserMedia({audio:true});
+      isListening = true;
+      recog.start();
+      document.getElementById('btnVoiceStart').disabled = true;
+      document.getElementById('btnVoiceStop').disabled = false;
+      document.getElementById('voiceStatus').textContent="Nasłuchiwanie...";
+    } catch(e){
+      document.getElementById('voiceStatus').textContent="Błąd mikrofonu: "+e.message;
+    }
+  };
+
+  document.getElementById('btnVoiceStop').onclick=()=>{
+    isListening = false;
+    try { recog.stop(); } catch(e){}
+    document.getElementById('btnVoiceStart').disabled = false;
+    document.getElementById('btnVoiceStop').disabled = true;
+    document.getElementById('voiceStatus').textContent="Zatrzymano nasłuchiwanie";
+  };
+}
 
 /* ---------- JASNOŚĆ ---------- */
 const brightnessSlider=document.getElementById('brightnessSlider');
@@ -310,13 +342,15 @@ const brightnessValue=document.getElementById('brightnessValue');
 brightnessSlider.oninput=()=>{
   brightness=Number(brightnessSlider.value);
   brightnessValue.textContent=brightness;
-  // Aktualizuj aktualny kolor w gridzie
+
   cells.forEach(c=>{
-    let rgb=c.style.background.match(/\d+/g).map(Number);
-    c.style.background=`rgb(${rgb.map(x=>x*brightness/255|0)})`;
+    const baseStr = c.dataset.baseColor || '0,0,0';
+    const base = baseStr.split(',').map(Number);
+    const scaled = base.map(x=>x*brightness/255|0);
+    c.style.background=`rgb(${scaled[0]},${scaled[1]},${scaled[2]})`;
   });
 };
 </script>
 
 </body>
-  </html>
+</html>

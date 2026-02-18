@@ -15,7 +15,11 @@
     main { padding: 1rem; }
     #connectionPage, #gridPage, #musicPage, #modsPage { display:none; }
     #grid {
-      display: grid; grid-template-columns: repeat(8, 40px); grid-gap: 4px; justify-content:center; margin: 20px 0;
+      display: grid; 
+      grid-template-columns: repeat(9, 40px); /* changed to 9 */
+      grid-gap: 4px; 
+      justify-content:center; 
+      margin: 20px 0;
     }
     .cell {
       width: 40px; height: 40px; background: black; border-radius: 4px; cursor:pointer;
@@ -79,6 +83,8 @@
 </main>
 
 <script>
+  const NUM_LEDS = 81; /* changed */
+
   const btnConnect = document.getElementById('btnConnect');
   const btnGrid = document.getElementById('btnGrid');
   const btnMusic = document.getElementById('btnMusic');
@@ -114,7 +120,6 @@
   const SERVICE_UUID = '12345678-1234-1234-1234-1234567890ab';
   const CHARACTERISTIC_UUID = '87654321-4321-4321-4321-0987654321ba';
 
-  // --- POPRAWIONY FRAGMENT ---
   document.getElementById('btnRequestBluetooth').addEventListener('click', async () => {
     try {
       const device = await navigator.bluetooth.requestDevice({
@@ -122,35 +127,26 @@
         optionalServices: [SERVICE_UUID]
       });
 
-      if (!device.gatt) {
-        document.getElementById('connStatus').textContent = "Urządzenie nie obsługuje GATT!";
-        return;
-      }
-
       const server = await device.gatt.connect();
       const srv = await server.getPrimaryService(SERVICE_UUID);
       const characteristic = await srv.getCharacteristic(CHARACTERISTIC_UUID);
 
-      bluetoothDevice = device;
-      gattServer = server;
-      service = srv;
       writeCharacteristic = characteristic;
-
-      document.getElementById('connStatus').textContent = "Połączono z: " + (device.name || "Nieznane urządzenie");
+      document.getElementById('connStatus').textContent = "Połączono!";
     } catch (e) {
-      document.getElementById('connStatus').textContent = "Błąd połączenia: " + e.message;
-      console.error(e);
+      document.getElementById('connStatus').textContent = "Błąd: " + e.message;
     }
   });
-  // --- KONIEC POPRAWKI ---
 
   const grid = document.getElementById('grid');
   const btnSendGrid = document.getElementById('btnSendGrid');
   const sendStatus = document.getElementById('sendStatus');
+
   const colors = {
     red: '#FF0000', green: '#00FF00', blue: '#0000FF',
     yellow: '#FFFF00', purple: '#800080', orange: '#FFA500', black: '#000000'
   };
+
   let selectedColor = 'red', cells = [];
 
   document.querySelectorAll('.color-circle').forEach(el => {
@@ -161,7 +157,7 @@
     });
   });
 
-  for (let i = 0; i < 64; i++) {
+  for (let i = 0; i < NUM_LEDS; i++) { /* changed */
     const cell = document.createElement('div');
     cell.className = 'cell';
     cell.style.backgroundColor = colors.black;
@@ -173,20 +169,16 @@
   }
 
   btnSendGrid.addEventListener('click', async () => {
-    if (!writeCharacteristic) return sendStatus.textContent = 'Nie połączono z lampą!';
-    let data = new Uint8Array(192);
-    for (let i = 0; i < 64; i++) {
+    if (!writeCharacteristic) return sendStatus.textContent = 'Nie połączono!';
+    let data = new Uint8Array(NUM_LEDS * 3); /* changed */
+    for (let i = 0; i < NUM_LEDS; i++) { /* changed */
       let rgb = parseRGB(cells[i].style.backgroundColor);
       data[i * 3] = rgb.r;
       data[i * 3 + 1] = rgb.g;
       data[i * 3 + 2] = rgb.b;
     }
-    try {
-      await writeCharacteristic.writeValue(data);
-      sendStatus.textContent = 'Dane wysłane!';
-    } catch (e) {
-      sendStatus.textContent = 'Błąd: ' + e.message;
-    }
+    await writeCharacteristic.writeValue(data);
+    sendStatus.textContent = 'Dane wysłane!';
   });
 
   function parseRGB(rgbString) {
@@ -194,157 +186,6 @@
     return { r: parseInt(result[0]), g: parseInt(result[1]), b: parseInt(result[2]) };
   }
 
-  // --- MODY LED ---
-  let effectInterval;
-
-  function stopEffects() {
-    clearInterval(effectInterval);
-  }
-
-  function sendUniformColor(r, g, b) {
-    if (!writeCharacteristic) return;
-    const data = new Uint8Array(192);
-    for (let i = 0; i < 64; i++) {
-      data[i * 3] = r;
-      data[i * 3 + 1] = g;
-      data[i * 3 + 2] = b;
-    }
-    writeCharacteristic.writeValue(data).catch(console.error);
-  }
-
-  function startBlink() {
-    stopEffects();
-    let on = false;
-    effectInterval = setInterval(() => {
-      on = !on;
-      sendUniformColor(on ? 255 : 0, 0, on ? 255 : 0);
-    }, 500);
-  }
-
-  function startPulse() {
-    stopEffects();
-    let i = 0;
-    effectInterval = setInterval(() => {
-      let val = Math.floor(128 + 127 * Math.sin(i * 0.1));
-      sendUniformColor(val, 0, val);
-      i++;
-    }, 50);
-  }
-
-  function startRandom() {
-    stopEffects();
-    effectInterval = setInterval(() => {
-      const data = new Uint8Array(192);
-      for (let i = 0; i < 64; i++) {
-        data[i * 3] = Math.random() * 255;
-        data[i * 3 + 1] = Math.random() * 255;
-        data[i * 3 + 2] = Math.random() * 255;
-      }
-      writeCharacteristic?.writeValue(data).catch(console.error);
-    }, 200);
-  }
-
-  function startRainbow() {
-    stopEffects();
-    let hue = 0;
-    effectInterval = setInterval(() => {
-      const data = new Uint8Array(192);
-      for (let i = 0; i < 64; i++) {
-        const h = (hue + i * 5) % 360;
-        const { r, g, b } = hslToRgb(h / 360, 1, 0.5);
-        data[i * 3] = r;
-        data[i * 3 + 1] = g;
-        data[i * 3 + 2] = b;
-      }
-      writeCharacteristic?.writeValue(data).catch(console.error);
-      hue = (hue + 5) % 360;
-    }, 150);
-  }
-
-  function hslToRgb(h, s, l) {
-    let r, g, b;
-    if (s === 0) r = g = b = l;
-    else {
-      const hue2rgb = (p, q, t) => {
-        if(t < 0) t += 1;
-        if(t > 1) t -= 1;
-        if(t < 1/6) return p + (q - p) * 6 * t;
-        if(t < 1/2) return q;
-        if(t < 2/3) return p + (q - p) * (2/3 - t) * 6;
-        return p;
-      };
-      const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-      const p = 2 * l - q;
-      r = hue2rgb(p, q, h + 1/3);
-      g = hue2rgb(p, q, h);
-      b = hue2rgb(p, q, h - 1/3);
-    }
-    return { r: Math.round(r * 255), g: Math.round(g * 255), b: Math.round(b * 255) };
-  }
-
-  function startHeart() {
-    stopEffects();
-    const pattern = [
-      0,255,0,0,0,0,255,0,
-      255,255,0,0,0,0,255,255,
-      255,255,255,0,0,255,255,255,
-      255,255,255,255,255,255,255,255,
-      255,255,255,255,255,255,255,255,
-      0,255,255,255,255,255,255,0,
-      0,0,255,255,255,255,0,0,
-      0,0,0,255,255,0,0,0
-    ];
-    effectInterval = setInterval(() => {
-      const data = new Uint8Array(192);
-      for(let i=0; i<64; i++) {
-        const val = pattern[i];
-        data[i*3] = val;
-        data[i*3+1] = 0;
-        data[i*3+2] = val;
-      }
-      writeCharacteristic?.writeValue(data).catch(console.error);
-    }, 500);
-
-// --- STEROWANIE GŁOSEM ---
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  let recognition;
-
-  if (SpeechRecognition) {
-    const voiceBtn = document.createElement("button");
-    voiceBtn.textContent = "Sterowanie głosem ";
-   voiceBtn.style.marginTop = "15px";
-    connectionPage.appendChild(voiceBtn);
-
-    recognition = new SpeechRecognition();
-    recognition.lang = "pl-PL";
-    recognition.continuous = false;
-
-    voiceBtn.addEventListener("click", () => {
-      recognition.start();
-      document.getElementById('connStatus').textContent = "Nasłuchiwanie...";
-    });
-
-    recognition.onresult = (event) => {
-      const transcript = event.results[0][0].transcript.toLowerCase();
-      document.getElementById('connStatus').textContent = "Powiedziano: " + transcript;
-
-      if (transcript.includes("czerwony")) sendUniformColor(255, 0, 0);
-      else if (transcript.includes("zielony")) sendUniformColor(0, 255, 0);
-      else if (transcript.includes("niebieski")) sendUniformColor(0, 0, 255);
-      else if (transcript.includes("żółty")) sendUniformColor(255, 255, 0);
-      else if (transcript.includes("fioletowy") || transcript.includes("purpurowy")) sendUniformColor(128, 0, 128);
-      else if (transcript.includes("pomarańczowy")) sendUniformColor(255, 165, 0);
-      else if (transcript.includes("tęcza")) startRainbow();
-      else if (transcript.includes("stop")) stopEffects();
-    };
-
-    recognition.onerror = (event) => {
-      document.getElementById('connStatus').textContent = "Błąd rozpoznawania: " + event.error;
-    };
-  } else {
-    console.warn("Web Speech API nie jest wspierane w tej przeglądarce.");
-  }
-  }
 </script>
 </body>
 </html>

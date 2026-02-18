@@ -194,8 +194,8 @@ function sendGrid(){
   if(!writeCharacteristic) return;
   let data=new Uint8Array(NUM_LEDS*3);
   cells.forEach((c,i)=>{
-    let rgb=c.style.background.match(/\d+/g)||[0,0,0];
-    data.set(rgb.map(Number),i*3);
+    let rgb=c.style.background.match(/\d+/g).map(Number);
+    data.set(rgb,i*3);
   });
   writeCharacteristic.writeValue(data);
 }
@@ -263,6 +263,7 @@ const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition
 const recog=new SpeechRecognition();
 recog.lang='pl-PL';
 recog.continuous=true;
+recog.interimResults=true;
 
 recog.onresult=e=>{
   const text=e.results[e.results.length-1][0].transcript.toLowerCase();
@@ -277,11 +278,19 @@ recog.onresult=e=>{
   else if(text.includes('róż')) fill('pink');
 };
 
+/* Automatyczny restart po zakończeniu, żeby działało ciągle */
+recog.onend = () => {
+  if(document.getElementById('btnVoiceStart').disabled) return;
+  recog.start();
+};
+
 /* Start / Stop nasłuchiwania */
 document.getElementById('btnVoiceStart').onclick=async()=>{
   try{
     await navigator.mediaDevices.getUserMedia({audio:true});
     recog.start();
+    document.getElementById('btnVoiceStart').disabled = true;
+    document.getElementById('btnVoiceStop').disabled = false;
     document.getElementById('voiceStatus').textContent="Nasłuchiwanie...";
   } catch(e){
     document.getElementById('voiceStatus').textContent="Błąd mikrofonu: "+e.message;
@@ -290,6 +299,8 @@ document.getElementById('btnVoiceStart').onclick=async()=>{
 
 document.getElementById('btnVoiceStop').onclick=()=>{
   recog.stop();
+  document.getElementById('btnVoiceStart').disabled = false;
+  document.getElementById('btnVoiceStop').disabled = true;
   document.getElementById('voiceStatus').textContent="Zatrzymano nasłuchiwanie";
 };
 

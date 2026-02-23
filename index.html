@@ -38,7 +38,7 @@ button { padding:0.5rem 1rem; margin:5px; background:#444; color:white; border:n
 <button id="btnVoiceStop" disabled>Stop nasłuchiwania</button>
 <p id="voiceStatus">Nieaktywny</p>
 <p id="voiceColorText" style="font-size:1.5rem;font-weight:bold;margin-top:10px;"></p>
-<div id="grid"></div>
+<div id="gridContainer"></div>
 <button id="btnSendGrid">Wyślij do lampy</button>
 </section>
 </main>
@@ -103,22 +103,26 @@ document.getElementById('btnRequestBluetooth').onclick=async()=>{
 };
 
 /* ---------- GRID ---------- */
-const grid=document.getElementById('grid');
+const gridContainer = document.getElementById('gridContainer');
+const grid = document.createElement('div');
+grid.id = 'grid';
+gridContainer.appendChild(grid);
+
 for(let i=0;i<NUM_LEDS;i++){
-  const c=document.createElement('div');
-  c.className='cell';
-  c.dataset.baseColor='0,0,0';
+  const c = document.createElement('div');
+  c.className = 'cell';
+  c.dataset.baseColor = '0,0,0';
   grid.appendChild(c);
   cells.push(c);
 }
 
 /* Wypełnienie siatki kolorem */
 function fill(color){
-  const rgb=colors[color];
+  const rgb = colors[color];
   cells.forEach(c=>{
-    c.dataset.baseColor=rgb.join(',');
-    const scaled = rgb.map(v=>v*brightness/255|0);
-    c.style.background=`rgb(${scaled[0]},${scaled[1]},${scaled[2]})`;
+    c.dataset.baseColor = rgb.join(',');
+    const scaled = rgb.map(v => Math.floor(v*brightness/255));
+    c.style.background = `rgb(${scaled[0]},${scaled[1]},${scaled[2]})`;
   });
   currentColor = color;
 }
@@ -130,9 +134,9 @@ async function sendGrid(){
   const rgb = colors[currentColor];
   let data = new Uint8Array(NUM_LEDS*3);
   for(let i=0;i<NUM_LEDS;i++){
-    data[i*3]=rgb[0];
-    data[i*3+1]=rgb[1];
-    data[i*3+2]=rgb[2];
+    data[i*3] = rgb[0];
+    data[i*3+1] = rgb[1];
+    data[i*3+2] = rgb[2];
   }
   await writeCharacteristic.writeValue(data);
   alert("Wysłano kolor: "+currentColor);
@@ -143,31 +147,32 @@ const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecogni
 let recog=null, isListening=false;
 
 if(SpeechRecognition){
-  recog=new SpeechRecognition();
-  recog.lang='pl-PL';
-  recog.continuous=true;
-  recog.interimResults=false;
+  recog = new SpeechRecognition();
+  recog.lang = 'pl-PL';
+  recog.continuous = true;
+  recog.interimResults = false;
 
-  recog.onresult=e=>{
-    const transcript=e.results[e.resultIndex][0].transcript.toLowerCase().trim();
-    document.getElementById('voiceStatus').textContent="Rozpoznano: "+transcript;
-    document.getElementById('voiceColorText').textContent=transcript;
+  recog.onresult = e=>{
+    const transcript = e.results[e.resultIndex][0].transcript.toLowerCase().trim();
+    document.getElementById('voiceStatus').textContent = "Rozpoznano: "+transcript;
+    document.getElementById('voiceColorText').textContent = transcript;
 
-    let detected=null;
+    let detected = null;
     Object.keys(colorMap).forEach(key=>{
-      if(transcript.includes(key)) detected=colorMap[key];
+      if(transcript.includes(key)) detected = colorMap[key];
     });
 
     if(detected){
-      fill(detected);
-      document.body.style.backgroundColor=detected;
+      fill(detected);              // koloruje siatkę
+      currentColor = detected;     // ustawia kolor do wysłania
+      document.body.style.backgroundColor = detected;
     }
   };
 
-  recog.onerror=e=>{ document.getElementById('voiceStatus').textContent="Błąd: "+e.error; };
-  recog.onend=()=>{ if(isListening) recog.start(); };
+  recog.onerror = e => { document.getElementById('voiceStatus').textContent = "Błąd: " + e.error; };
+  recog.onend = () => { if(isListening) recog.start(); };
 
-  document.getElementById('btnVoiceStart').onclick=async()=>{
+  document.getElementById('btnVoiceStart').onclick = async()=>{
     try{
       await navigator.mediaDevices.getUserMedia({audio:true});
       isListening=true;
@@ -178,21 +183,19 @@ if(SpeechRecognition){
     }catch(e){ document.getElementById('voiceStatus').textContent="Błąd mikrofonu: "+e.message; }
   };
 
-  document.getElementById('btnVoiceStop').onclick=()=>{
+  document.getElementById('btnVoiceStop').onclick = ()=>{
     isListening=false;
     recog.stop();
     document.getElementById('btnVoiceStart').disabled=false;
     document.getElementById('btnVoiceStop').disabled=true;
     document.getElementById('voiceStatus').textContent="Zatrzymano nasłuchiwanie";
   };
-
 }else{
   document.getElementById('voiceStatus').textContent="Brak obsługi Web Speech API (Chrome)";
 }
 
 /* ---------- WYŚLIJ ---------- */
-document.getElementById('btnSendGrid').onclick=sendGrid;
-
+document.getElementById('btnSendGrid').onclick = sendGrid;
 </script>
 </body>
 </html>

@@ -98,14 +98,14 @@ input[type=range]{ margin:5px; }
 const NUM_LEDS = 81;
 let brightness = 255;
 
-const SERVICE_UUID='12345678-1234-1234-1234-1234567890ab';
-const CHAR_UUID='87654321-4321-4321-4321-0987654321ba';
+const SERVICE_UUID = '12345678-1234-1234-1234-1234567890ab';
+const CHARACTERISTIC_UUID = '87654321-4321-4321-4321-0987654321ba';
 
-let writeCharacteristic=null;
-let cells=[];
-let selectedColor='red';
+let writeCharacteristic = null;
+let cells = [];
+let selectedColor = 'red';
 
-const colors={
+const colors = {
 red:[255,0,0],
 green:[0,255,0],
 blue:[0,0,255],
@@ -116,7 +116,7 @@ pink:[255,20,147],
 black:[0,0,0]
 };
 
-/* ---------------- NAWIGACJA ---------------- */
+/* NAWIGACJA */
 const pages={
 btnConnect:'connectionPage',
 btnGrid:'gridPage',
@@ -134,16 +134,19 @@ document.getElementById(id).classList.add('active');
 });
 document.getElementById('connectionPage').style.display='block';
 
-/* ---------------- BLE ---------------- */
+/* BLE */
 document.getElementById('btnRequestBluetooth').onclick=async()=>{
 try{
-const device=await navigator.bluetooth.requestDevice({
-filters:[{services:[SERVICE_UUID]}]
+const device = await navigator.bluetooth.requestDevice({
+acceptAllDevices: true,
+optionalServices: [SERVICE_UUID]
 });
-const server=await device.gatt.connect();
-const service=await server.getPrimaryService(SERVICE_UUID);
-writeCharacteristic=await service.getCharacteristic(CHAR_UUID);
-document.getElementById('connStatus').textContent="Połączono!";
+
+const server = await device.gatt.connect();
+const service = await server.getPrimaryService(SERVICE_UUID);
+writeCharacteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
+
+document.getElementById('connStatus').textContent="Połączono z " + device.name;
 }catch(e){
 document.getElementById('connStatus').textContent="Błąd: "+e.message;
 }
@@ -155,7 +158,7 @@ const encoder=new TextEncoder();
 await writeCharacteristic.writeValue(encoder.encode(text));
 }
 
-/* ---------------- GRID ---------------- */
+/* GRID */
 const grid=document.getElementById('grid');
 for(let i=0;i<NUM_LEDS;i++){
 const c=document.createElement('div');
@@ -194,20 +197,8 @@ document.getElementById('btnClearGrid').onclick=()=>{
 cells.forEach(c=>c.style.background='rgb(0,0,0)');
 };
 
-/* ---------------- VOICE ---------------- */
+/* VOICE */
 const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
-const colorMap={
-"czerwony":"red",
-"zielony":"green",
-"niebieski":"blue",
-"żółty":"yellow",
-"zolty":"yellow",
-"różowy":"pink",
-"rozowy":"pink",
-"pomarańczowy":"orange",
-"pomaranczowy":"orange",
-"fioletowy":"purple"
-};
 
 if(SpeechRecognition){
 const recognition=new SpeechRecognition();
@@ -221,32 +212,20 @@ document.getElementById('voiceStatus').textContent="Nasłuchiwanie...";
 recognition.onresult=e=>{
 const text=e.results[0][0].transcript.toLowerCase().trim();
 document.getElementById('voiceText').textContent=text;
-
-if(colorMap[text]){
-document.body.style.backgroundColor=colorMap[text];
-fillColor(colorMap[text]);
-sendTextBLE(colorMap[text]); // wysyła nazwę koloru jak w drugim kodzie
-}
+sendTextBLE(text);
 };
 
 }else{
 document.getElementById('voiceStatus').textContent="Brak obsługi Web Speech API (Chrome)";
 }
 
-function fillColor(color){
-const base=colors[color];
-const col=base.map(v=>v*brightness/255|0);
-cells.forEach(c=>{
-c.style.background=`rgb(${col[0]},${col[1]},${col[2]})`;
-});
-}
-
-/* ---------------- JASNOŚĆ ---------------- */
+/* JASNOŚĆ */
 const slider=document.getElementById('brightnessSlider');
 slider.oninput=()=>{
 brightness=Number(slider.value);
 document.getElementById('brightnessValue').textContent=brightness;
 };
 </script>
+
 </body>
 </html>

@@ -112,10 +112,8 @@ input[type=range]{ margin:5px; }
 </main>
  
 <script>
- 
 const NUM_LEDS = 81;
 let brightness = 255;
- 
 const colors = {
 red:[255,0,0],
 green:[0,255,0],
@@ -173,7 +171,6 @@ document.getElementById('connStatus').textContent="Błąd: "+e.message;
  
 /* ---------- GRID ---------- */
 const grid=document.getElementById('grid');
- 
 for(let i=0;i<NUM_LEDS;i++){
 const c=document.createElement('div');
 c.className='cell';
@@ -196,6 +193,9 @@ selectedColor=c.id;
 };
 });
  
+document.getElementById('btnSendGrid').onclick=sendGrid;
+document.getElementById('btnClearGrid').onclick=clearGrid;
+ 
 function sendGrid(){
 if(!writeCharacteristic) return;
 let data=new Uint8Array(NUM_LEDS*3);
@@ -207,6 +207,17 @@ data.set(rgb.map(Number),i*3);
 writeCharacteristic.writeValue(data);
 }
  
+function clearGrid(){
+cells.forEach(c=>{
+c.dataset.baseColor = '0,0,0';
+c.style.background='rgb(0,0,0)';
+});
+sendGrid();
+}
+ 
+/* ---------- MODY ---------- */
+function stopEffects(){ clearInterval(effectInterval); }
+ 
 function fill(color){
 const base=colors[color];
 const col=base.map(v=>v*brightness/255|0);
@@ -216,6 +227,11 @@ c.style.background=`rgb(${col[0]},${col[1]},${col[2]})`;
 });
 sendGrid();
 }
+ 
+function startBlink(){ stopEffects(); let on=true; effectInterval=setInterval(()=>{ fill(on?'red':'black'); on=!on; },500); }
+function startRainbow(){ stopEffects(); let cols=Object.keys(colors); let i=0; effectInterval=setInterval(()=>fill(cols[i++%cols.length]),300); }
+function startPulse(){ stopEffects(); let v=0,dir=1; effectInterval=setInterval(()=>{ let base=[v,0,255-v]; const col=base.map(x=>x*brightness/255|0); cells.forEach(c=>{ c.dataset.baseColor=base.join(','); c.style.background=`rgb(${col[0]},${col[1]},${col[2]})`; }); sendGrid(); v+=dir*15; if(v>=255||v<=0) dir*=-1; },100);}
+function startRandom(){ stopEffects(); effectInterval=setInterval(()=>{ cells.forEach(c=>{ let r=Math.random()*255|0; let g=Math.random()*255|0; let b=Math.random()*255|0; c.dataset.baseColor=`${r},${g},${b}`; r=r*brightness/255|0; g=g*brightness/255|0; b=b*brightness/255|0; c.style.background=`rgb(${r},${g},${b})`; }); sendGrid(); },300); }
  
 /* ---------- GŁOS ---------- */
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -236,6 +252,7 @@ if(SpeechRecognition){
 recog=new SpeechRecognition();
 recog.lang='pl-PL';
 recog.continuous=true;
+recog.interimResults=false;
  
 recog.onresult=e=>{
 const transcript=e.results[e.resultIndex][0].transcript.toLowerCase().trim();
@@ -244,26 +261,36 @@ document.getElementById('voiceColorText').textContent=transcript;
  
 let detected=null;
 Object.keys(colorMap).forEach(key=>{
-  if(transcript.includes(key)){
-   detected=colorMap[key];
-  }
+  if(transcript.includes(key)) detected=colorMap[key];
 });
  
 if(detected){
   document.body.style.backgroundColor=detected;
-  fill(detected);
+  fill(detected); // ustawia kolor w siatce LED i wysyła
 }
 };
  
+recog.onerror = e => { document.getElementById('voiceStatus').textContent = "Błąd rozpoznawania: " + e.error; };
+ 
+recog.onend = () => { if(isListening){ try { recog.start(); } catch(e){} } };
+ 
 document.getElementById('btnVoiceStart').onclick=async()=>{
-  await navigator.mediaDevices.getUserMedia({audio:true});
-  isListening=true;
-  recog.start();
+  try{
+   await navigator.mediaDevices.getUserMedia({audio:true});
+   isListening=true;
+   recog.start();
+   document.getElementById('btnVoiceStart').disabled=true;
+   document.getElementById('btnVoiceStop').disabled=false;
+   document.getElementById('voiceStatus').textContent="Nasłuchiwanie...";
+  }catch(e){ document.getElementById('voiceStatus').textContent="Błąd mikrofonu: "+e.message; }
 };
  
 document.getElementById('btnVoiceStop').onclick=()=>{
   isListening=false;
-  recog.stop();
+  try{ recog.stop(); }catch(e){}
+  document.getElementById('btnVoiceStart').disabled=false;
+  document.getElementById('btnVoiceStop').disabled=true;
+  document.getElementById('voiceStatus').textContent="Zatrzymano nasłuchiwanie";
 };
 }else{
 document.getElementById('voiceStatus').textContent="Brak obsługi Web Speech API (użyj Chrome)";
@@ -272,11 +299,9 @@ document.getElementById('voiceStatus').textContent="Brak obsługi Web Speech API
 /* ---------- JASNOŚĆ ---------- */
 const brightnessSlider=document.getElementById('brightnessSlider');
 const brightnessValue=document.getElementById('brightnessValue');
- 
 brightnessSlider.oninput=()=>{
 brightness=Number(brightnessSlider.value);
 brightnessValue.textContent=brightness;
- 
 cells.forEach(c=>{
   const baseStr=c.dataset.baseColor||'0,0,0';
   const base=baseStr.split(',').map(Number);
@@ -284,7 +309,6 @@ cells.forEach(c=>{
   c.style.background=`rgb(${scaled[0]},${scaled[1]},${scaled[2]})`;
 });
 };
- 
 </script>
 </body>
 </html>

@@ -15,6 +15,7 @@ section { display:none }
 #grid { display:grid; grid-template-columns:repeat(9,40px); gap:4px; justify-content:center; margin-top:10px; }
 .cell { width:40px; height:40px; background:black; border-radius:4px; cursor:pointer; }
 button { padding:0.5rem 1rem; margin:5px; background:#444; color:white; border:none; border-radius:4px }
+#log { font-size:0.8rem; max-height:120px; overflow:auto; background:#000; padding:0.5rem; margin-top:10px; white-space:pre-wrap; }
 </style>
 </head>
 <body>
@@ -40,6 +41,7 @@ button { padding:0.5rem 1rem; margin:5px; background:#444; color:white; border:n
 <p id="voiceColorText" style="font-size:1.5rem;font-weight:bold;margin-top:10px;"></p>
 <div id="gridContainer"></div>
 <button id="btnSendGrid">Wyślij do lampy</button>
+<div id="log"></div>
 </section>
 </main>
 
@@ -51,25 +53,34 @@ let cells = [];
 let currentColor = null;
 
 const colors = {
-red:[255,0,0],
-green:[0,255,0],
-blue:[0,0,255],
-yellow:[255,255,0],
-orange:[255,165,0],
-purple:[128,0,128],
-pink:[255,20,147],
-black:[0,0,0]
+  red:[255,0,0],
+  green:[0,255,0],
+  blue:[0,0,255],
+  yellow:[255,255,0],
+  orange:[255,165,0],
+  purple:[128,0,128],
+  pink:[255,20,147],
+  black:[0,0,0]
 };
 
 const colorMap = {
-"czerwony":"red","czerwona":"red",
-"zielony":"green","zielona":"green",
-"niebieski":"blue","niebieska":"blue",
-"żółty":"yellow","zolty":"yellow",
-"fioletowy":"purple",
-"różowy":"pink","rozowy":"pink",
-"pomarańczowy":"orange","pomaranczowy":"orange"
+  "czerwony":"red","czerwona":"red",
+  "zielony":"green","zielona":"green",
+  "niebieski":"blue","niebieska":"blue",
+  "żółty":"yellow","zolty":"yellow",
+  "fioletowy":"purple",
+  "różowy":"pink","rozowy":"pink",
+  "pomarańczowy":"orange","pomaranczowy":"orange",
+  "czarny":"black","czarna":"black",
+  "róż":"pink","roz":"pink"
 };
+
+function log(msg){
+  console.log(msg);
+  const el = document.getElementById('log');
+  el.textContent += msg + "\n";
+  el.scrollTop = el.scrollHeight;
+}
 
 /* ---------- NAWIGACJA ---------- */
 const pages = {btnConnect:'connectionPage', btnVoice:'voicePage'};
@@ -89,16 +100,21 @@ const CHAR_UUID='87654321-4321-4321-4321-0987654321ba';
 
 document.getElementById('btnRequestBluetooth').onclick=async()=>{
   try{
+    log("Żądanie urządzenia Bluetooth...");
     const device = await navigator.bluetooth.requestDevice({
       acceptAllDevices:true,
       optionalServices:[SERVICE_UUID]
     });
+    log("Wybrano urządzenie: " + device.name);
     const server = await device.gatt.connect();
+    log("Połączono z GATT");
     const service = await server.getPrimaryService(SERVICE_UUID);
     writeCharacteristic = await service.getCharacteristic(CHAR_UUID);
     document.getElementById('connStatus').textContent="Połączono z "+device.name;
+    log("Gotowa charakterystyka do zapisu");
   }catch(e){
     document.getElementById('connStatus').textContent="Błąd: "+e.message;
+    log("Błąd Bluetooth: " + e.message);
   }
 };
 
@@ -116,9 +132,13 @@ for(let i=0;i<NUM_LEDS;i++){
   cells.push(c);
 }
 
-/* Wypełnienie siatki kolorem */
 function fill(color){
   const rgb = colors[color];
+  if(!rgb){
+    log("fill(): nieznany kolor: " + color);
+    return;
+  }
+  log("Wypełniam siatkę kolorem: " + color + " ("+rgb.join(",")+")");
   cells.forEach(c=>{
     c.dataset.baseColor = rgb.join(',');
     const scaled = rgb.map(v => Math.floor(v*brightness/255));
@@ -127,60 +147,110 @@ function fill(color){
   currentColor = color;
 }
 
-/* Wysyłanie koloru do ESP32 */
+/* ---------- WYSYŁANIE DO ESP32 ---------- */
 async function sendGrid(){
-  if(!writeCharacteristic){ alert("Najpierw połącz z ESP32!"); return; }
-  if(!currentColor){ alert("Nie wykryto koloru!"); return; }
+  log("Próba wysłania siatki...");
+  if(!writeCharacteristic){
+    alert("Najpierw połącz z ESP32!");
+    log("Brak writeCharacteristic – nie połączono z ESP32");
+    return;
+  }
+  if(!currentColor){
+    alert("Nie wykryto koloru!");
+    log("Brak currentColor – nic do wysłania");
+    return;
+  }
   const rgb = colors[currentColor];
+  if(!rgb){
+    log("Nieznany currentColor: " + currentColor);
+    return;
+  }
   let data = new Uint8Array(NUM_LEDS*3);
   for(let i=0;i<NUM_LEDS;i++){
     data[i*3] = rgb[0];
     data[i*3+1] = rgb[1];
     data[i*3+2] = rgb[2];
   }
-  await writeCharacteristic.writeValue(data);
-  alert("Wysłano kolor: "+currentColor);
+  try{
+    await writeCharacteristic.writeValue(data);
+    alert("Wysłano kolor: "+currentColor);
+    log("Wysłano " + data.length + " bajtów, kolor: " + currentColor);
+  }catch(e){
+    log("Błąd przy writeValue: " + e.message);
+  }
 }
 
 /* ---------- GŁOS ---------- */
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 let recog=null, isListening=false;
 
-if(SpeechRecognition){
+if(!SpeechRecognition){
+  document.getElementById('voiceStatus').textContent="Brak obsługi Web Speech API (użyj Chrome / Edge przez HTTPS)";
+  log("SpeechRecognition niedostępne w tej przeglądarce");
+}else{
   recog = new SpeechRecognition();
   recog.lang = 'pl-PL';
   recog.continuous = true;
   recog.interimResults = false;
 
+  recog.onstart = ()=>{
+    log("Rozpoznawanie głosu START");
+  };
+
   recog.onresult = e=>{
-    const transcript = e.results[e.resultIndex][0].transcript.toLowerCase().trim();
-    document.getElementById('voiceStatus').textContent = "Rozpoznano: "+transcript;
-    document.getElementById('voiceColorText').textContent = transcript;
+    log("onresult: otrzymano " + e.results.length + " wyników");
+    let fullText = "";
+    for(let i=0;i<e.results.length;i++){
+      fullText += e.results[i][0].transcript + " ";
+    }
+    fullText = fullText.toLowerCase().trim();
+    log("Pełny transcript: " + fullText);
+    document.getElementById('voiceStatus').textContent = "Rozpoznano: "+fullText;
+    document.getElementById('voiceColorText').textContent = fullText;
 
     let detected = null;
     Object.keys(colorMap).forEach(key=>{
-      if(transcript.includes(key)) detected = colorMap[key];
+      if(fullText.includes(key)){
+        detected = colorMap[key];
+      }
     });
 
     if(detected){
-      fill(detected);              // koloruje siatkę
-      currentColor = detected;     // ustawia kolor do wysłania
+      log("Wykryto kolor: " + detected);
+      fill(detected);
       document.body.style.backgroundColor = detected;
+    }else{
+      log("Nie znaleziono żadnego koloru w tekście");
     }
   };
 
-  recog.onerror = e => { document.getElementById('voiceStatus').textContent = "Błąd: " + e.error; };
-  recog.onend = () => { if(isListening) recog.start(); };
+  recog.onerror = e => {
+    document.getElementById('voiceStatus').textContent = "Błąd: " + e.error;
+    log("Błąd rozpoznawania: " + e.error);
+  };
+
+  recog.onend = () => {
+    log("Rozpoznawanie głosu END");
+    if(isListening){
+      log("Auto-restart rozpoznawania...");
+      recog.start();
+    }
+  };
 
   document.getElementById('btnVoiceStart').onclick = async()=>{
     try{
+      log("Żądanie dostępu do mikrofonu...");
       await navigator.mediaDevices.getUserMedia({audio:true});
       isListening=true;
       recog.start();
       document.getElementById('btnVoiceStart').disabled=true;
       document.getElementById('btnVoiceStop').disabled=false;
       document.getElementById('voiceStatus').textContent="Nasłuchiwanie...";
-    }catch(e){ document.getElementById('voiceStatus').textContent="Błąd mikrofonu: "+e.message; }
+      log("Nasłuchiwanie rozpoczęte");
+    }catch(e){
+      document.getElementById('voiceStatus').textContent="Błąd mikrofonu: "+e.message;
+      log("Błąd mikrofonu: " + e.message);
+    }
   };
 
   document.getElementById('btnVoiceStop').onclick = ()=>{
@@ -189,9 +259,8 @@ if(SpeechRecognition){
     document.getElementById('btnVoiceStart').disabled=false;
     document.getElementById('btnVoiceStop').disabled=true;
     document.getElementById('voiceStatus').textContent="Zatrzymano nasłuchiwanie";
+    log("Nasłuchiwanie zatrzymane");
   };
-}else{
-  document.getElementById('voiceStatus').textContent="Brak obsługi Web Speech API (Chrome)";
 }
 
 /* ---------- WYŚLIJ ---------- */

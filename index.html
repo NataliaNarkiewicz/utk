@@ -28,10 +28,54 @@
 <body>
   <h1>Powiedz kolor, a tło się zmieni</h1>
   <button id="startBtn">Start nasłuchiwania</button>
+  <button id="bleBtn">Połącz z ESP32 (BLE)</button>
   <div id="status">Mikrofon wyłączony</div>
   <div id="last">Ostatnio rozpoznane: —</div>
 
   <script>
+    /* -------------------------------
+       BLE – Twoje UUID
+    --------------------------------*/
+    const SERVICE_UUID = '12345678-1234-1234-1234-1234567890ab';
+    const CHARACTERISTIC_UUID = '87654321-4321-4321-4321-0987654321ba';
+
+    let bleDevice = null;
+    let bleCharacteristic = null;
+
+    async function connectBLE() {
+      try {
+        bleDevice = await navigator.bluetooth.requestDevice({
+          filters: [{ services: [SERVICE_UUID] }]
+        });
+
+        const server = await bleDevice.gatt.connect();
+        const service = await server.getPrimaryService(SERVICE_UUID);
+        bleCharacteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
+
+        document.getElementById("status").textContent = "Połączono z ESP32 przez BLE";
+      } catch (err) {
+        console.error(err);
+        document.getElementById("status").textContent = "Błąd połączenia BLE";
+      }
+    }
+
+    async function sendColorBLE(color) {
+      if (!bleCharacteristic) {
+        console.warn("Brak połączenia BLE");
+        return;
+      }
+
+      const encoder = new TextEncoder();
+      const data = encoder.encode(color);
+
+      try {
+        await bleCharacteristic.writeValue(data);
+        console.log("Wysłano BLE:", color);
+      } catch (err) {
+        console.error("Błąd BLE:", err);
+      }
+    }
+
     // Obsługa różnych nazw interfejsu
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
@@ -39,11 +83,12 @@
       alert("Twoja przeglądarka nie wspiera Web Speech API. Spróbuj w Google Chrome.");
     } else {
       const recognition = new SpeechRecognition();
-      recognition.lang = "pl-PL";      // język rozpoznawania
-      recognition.continuous = false;  // jedno „nagranie” na raz
+      recognition.lang = "pl-PL";
+      recognition.continuous = false;
       recognition.interimResults = false;
 
       const startBtn = document.getElementById("startBtn");
+      const bleBtn = document.getElementById("bleBtn");
       const statusEl = document.getElementById("status");
       const lastEl = document.getElementById("last");
 
@@ -71,21 +116,19 @@
       function setBackgroundFromWord(word) {
         const lower = word.toLowerCase().trim();
 
-        // 1. Spróbuj polskiej mapy
         if (colorMap[lower]) {
           document.body.style.backgroundColor = colorMap[lower];
-          return true;
+          return colorMap[lower];
         }
 
-        // 2. Spróbuj bezpośrednio jako kolor CSS (np. „red”, „blue”)
         const test = document.createElement("div");
         test.style.color = lower;
         if (test.style.color) {
           document.body.style.backgroundColor = lower;
-          return true;
+          return lower;
         }
 
-        return false;
+        return null;
       }
 
       startBtn.addEventListener("click", () => {
@@ -93,24 +136,26 @@
         statusEl.textContent = "Nasłuchiwanie… Powiedz nazwę koloru.";
       });
 
+      bleBtn.addEventListener("click", connectBLE);
+
       recognition.onresult = (event) => {
         const transcript = event.results[0][0].transcript;
         lastEl.textContent = "Ostatnio rozpoznane: " + transcript;
 
-        const success = setBackgroundFromWord(transcript);
-        if (!success) {
+        const cssColor = setBackgroundFromWord(transcript);
+
+        if (!cssColor) {
           statusEl.textContent = "Nie rozpoznano koloru: " + transcript;
         } else {
-          statusEl.textContent = "Kolor ustawiony na podstawie: " + transcript;
+          statusEl.textContent = "Kolor ustawiony: " + cssColor;
+
+          // WYSYŁAMY KOLOR DO ESP32 PRZEZ BLE
+          sendColorBLE(cssColor);
         }
       };
 
       recognition.onerror = (event) => {
         statusEl.textContent = "Błąd rozpoznawania: " + event.error;
-      };
-
-      recognition.onend = () => {
-        // kończy nasłuchiwanie
       };
     }
   </script>

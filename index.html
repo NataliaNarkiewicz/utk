@@ -1,101 +1,290 @@
 <!DOCTYPE html>
 <html lang="pl">
 <head>
-  <meta charset="UTF-8" />
-  <title>Rozpoznawanie koloru głosem</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      text-align: center;
-      margin-top: 50px;
-      transition: background-color 0.3s ease;
-    }
-    #colorText {
-      font-size: 2rem;
-      margin-top: 20px;
-      font-weight: bold;
-    }
-    button {
-      padding: 10px 20px;
-      font-size: 1rem;
-      cursor: pointer;
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RGB Lamp Controller Bluetooth</title>
+ 
+<style>
+body { background:#111; color:white; font-family:Arial; margin:0; transition:background 0.3s;}
+header { background:#222; padding:1rem; text-align:center; font-size:1.5rem }
+nav { display:flex; justify-content:center; background:#333; flex-wrap:wrap }
+nav button { background:none; border:none; color:#ccc; padding:1rem 2rem; cursor:pointer }
+nav button.active { background:#555; color:white }
+main { padding:1rem }
+section { display:none }
+ 
+#grid {
+display:grid;
+grid-template-columns:repeat(9,40px);
+gap:4px;
+justify-content:center;
+}
+ 
+.cell {
+width:40px;
+height:40px;
+background:black;
+border-radius:4px;
+cursor:pointer;
+}
+ 
+.color-circle {
+width:35px;
+height:35px;
+border-radius:50%;
+display:inline-block;
+margin:5px;
+cursor:pointer;
+border:3px solid transparent;
+}
+.color-circle.selected { border-color:yellow }
+ 
+button { padding:0.5rem 1rem; margin:5px; background:#444; color:white; border:none; border-radius:4px }
+input[type=range]{ margin:5px; }
+</style>
 </head>
+ 
 <body>
-  <h1>Powiedz kolor</h1>
-  <p>Kliknij przycisk i powiedz np. „czerwony”, „niebieski”, „green”, „red” itd.</p>
-  <button id="startBtn">Nasłuchuj</button>
-  <div id="colorText"></div>
  
-  <script>
-    // Sprawdzenie wsparcia API
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+<header>RGB Lamp Controller Bluetooth</header>
  
-    if (!SpeechRecognition) {
-      alert("Twoja przeglądarka nie wspiera Web Speech API. Spróbuj w Google Chrome.");
-    } else {
-      const recognition = new SpeechRecognition();
-      recognition.lang = "pl-PL"; // możesz zmienić na "en-US" jeśli chcesz kolory po angielsku
-      recognition.interimResults = false;
-      recognition.maxAlternatives = 1;
+<nav>
+<button id="btnConnect" class="active">Połączenie</button>
+<button id="btnGrid">Siatka LED</button>
+<button id="btnMusic">Muzyka</button>
+<button id="btnMods">Mody</button>
+<button id="btnVoice">Głos</button>
+<button id="btnBrightness">Jasność</button>
+</nav>
  
-      const startBtn = document.getElementById("startBtn");
-      const colorText = document.getElementById("colorText");
+<main>
  
-      startBtn.addEventListener("click", () => {
-        // Start nasłuchiwania – przeglądarka sama poprosi o dostęp do mikrofonu
-        recognition.start();
-        startBtn.textContent = "Nasłuchuję...";
-      });
+<section id="connectionPage">
+<button id="btnRequestBluetooth">Połącz Bluetooth</button>
+<p id="connStatus">Nie połączono</p>
+</section>
  
-      recognition.addEventListener("result", (event) => {
-        const transcript = event.results[0][0].transcript.trim();
-        console.log("Rozpoznano:", transcript);
+<section id="gridPage">
+<div>
+<div class="color-circle selected" id="red" style="background:red"></div>
+<div class="color-circle" id="green" style="background:green"></div>
+<div class="color-circle" id="blue" style="background:blue"></div>
+<div class="color-circle" id="yellow" style="background:yellow"></div>
+<div class="color-circle" id="purple" style="background:purple"></div>
+<div class="color-circle" id="orange" style="background:orange"></div>
+<div class="color-circle" id="pink" style="background:pink"></div>
+</div>
  
-        // Wyświetl rozpoznany tekst
-        colorText.textContent = transcript;
+<div id="grid"></div>
+<button id="btnSendGrid">Wyślij do lampy</button>
+<button id="btnClearGrid">Wyczyść</button>
+<p id="sendStatus"></p>
+</section>
  
-        // Spróbuj ustawić tło na ten kolor
-        // Dla polskich nazw możesz zrobić prostą mapę
-        const colorMap = {
-          "czerwony": "red",
-          "zielony": "green",
-          "niebieski": "blue",
-          "żółty": "yellow",
-          "fioletowy": "purple",
-          "różowy": "pink",
-          "biały": "white",
-          "czarny": "black",
-          "pomarańczowy": "orange",
-          "szary": "gray",
-          "brązowy": "brown"
-        };
+<section id="musicPage">
+<p>Mod muzyczny (do rozbudowy)</p>
+</section>
  
-        let color = transcript.toLowerCase();
+<section id="modsPage">
+<h3>Efekty LED</h3>
+<button onclick="startBlink()">Miganie</button>
+<button onclick="startRainbow()">Tęcza</button>
+<button onclick="startPulse()">Pulsowanie</button>
+<button onclick="startRandom()">Losowe</button>
+<button onclick="stopEffects()">Stop</button>
+</section>
  
-        if (colorMap[color]) {
-          color = colorMap[color];
-        }
+<section id="voicePage">
+<h3>Sterowanie głosem 🎤</h3>
+<button id="btnVoiceStart">Start nasłuchiwania</button>
+<button id="btnVoiceStop" disabled>Stop nasłuchiwania</button>
+<p id="voiceStatus">Nieaktywny</p>
+<p id="voiceColorText" style="font-size:1.5rem;font-weight:bold;margin-top:10px;"></p>
+</section>
  
-        // Sprawdź, czy to poprawny kolor CSS
-        const testEl = document.createElement("div");
-        testEl.style.color = color;
-        if (testEl.style.color) {
-          document.body.style.backgroundColor = color;
-        }
-      });
+<section id="brightnessPage">
+<h3>Regulacja jasności</h3>
+<input type="range" id="brightnessSlider" min="0" max="255" value="255">
+<p id="brightnessValue">255</p>
+</section>
  
-      recognition.addEventListener("end", () => {
-        // Zakończenie nasłuchiwania
-        startBtn.textContent = "Nasłuchuj";
-      });
+</main>
  
-      recognition.addEventListener("error", (event) => {
-        console.error("Błąd rozpoznawania:", event.error);
-        startBtn.textContent = "Nasłuchuj";
-      });
-    }
-  </script>
+<script>
+ 
+const NUM_LEDS = 81;
+let brightness = 255;
+ 
+const colors = {
+red:[255,0,0],
+green:[0,255,0],
+blue:[0,0,255],
+yellow:[255,255,0],
+orange:[255,165,0],
+purple:[128,0,128],
+pink:[255,20,147],
+black:[0,0,0]
+};
+ 
+let writeCharacteristic = null;
+let cells = [];
+let selectedColor = 'red';
+let effectInterval = null;
+ 
+/* ---------- NAWIGACJA ---------- */
+const pages = {
+btnConnect:'connectionPage',
+btnGrid:'gridPage',
+btnMusic:'musicPage',
+btnMods:'modsPage',
+btnVoice:'voicePage',
+btnBrightness:'brightnessPage'
+};
+ 
+Object.keys(pages).forEach(id=>{
+document.getElementById(id).onclick=()=>{
+document.querySelectorAll('section').forEach(s=>s.style.display='none');
+document.getElementById(pages[id]).style.display='block';
+document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
+document.getElementById(id).classList.add('active');
+}
+});
+document.getElementById('connectionPage').style.display='block';
+ 
+/* ---------- BLUETOOTH ---------- */
+const SERVICE_UUID='12345678-1234-1234-1234-1234567890ab';
+const CHAR_UUID='87654321-4321-4321-4321-0987654321ba';
+ 
+document.getElementById('btnRequestBluetooth').onclick=async()=>{
+try{
+const device=await navigator.bluetooth.requestDevice({
+acceptAllDevices:true,
+optionalServices:[SERVICE_UUID]
+});
+const server=await device.gatt.connect();
+const service=await server.getPrimaryService(SERVICE_UUID);
+writeCharacteristic=await service.getCharacteristic(CHAR_UUID);
+document.getElementById('connStatus').textContent="Połączono!";
+}catch(e){
+document.getElementById('connStatus').textContent="Błąd: "+e.message;
+}
+};
+ 
+/* ---------- GRID ---------- */
+const grid=document.getElementById('grid');
+ 
+for(let i=0;i<NUM_LEDS;i++){
+const c=document.createElement('div');
+c.className='cell';
+c.dataset.baseColor='0,0,0';
+c.onclick=()=>{
+const base=colors[selectedColor];
+c.dataset.baseColor=base.join(',');
+const scaled=base.map(v=>v*brightness/255|0);
+c.style.background=`rgb(${scaled[0]},${scaled[1]},${scaled[2]})`;
+};
+grid.appendChild(c);
+cells.push(c);
+}
+ 
+document.querySelectorAll('.color-circle').forEach(c=>{
+c.onclick=()=>{
+document.querySelectorAll('.color-circle').forEach(x=>x.classList.remove('selected'));
+c.classList.add('selected');
+selectedColor=c.id;
+};
+});
+ 
+function sendGrid(){
+if(!writeCharacteristic) return;
+let data=new Uint8Array(NUM_LEDS*3);
+cells.forEach((c,i)=>{
+let rgb=c.style.background.match(/\d+/g);
+if(!rgb) rgb=[0,0,0];
+data.set(rgb.map(Number),i*3);
+});
+writeCharacteristic.writeValue(data);
+}
+ 
+function fill(color){
+const base=colors[color];
+const col=base.map(v=>v*brightness/255|0);
+cells.forEach(c=>{
+c.dataset.baseColor=base.join(',');
+c.style.background=`rgb(${col[0]},${col[1]},${col[2]})`;
+});
+sendGrid();
+}
+ 
+/* ---------- GŁOS ---------- */
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+let recog=null;
+let isListening=false;
+ 
+const colorMap={
+"czerwony":"red","czerwona":"red",
+"zielony":"green","zielona":"green",
+"niebieski":"blue","niebieska":"blue",
+"żółty":"yellow","zolty":"yellow",
+"fioletowy":"purple",
+"różowy":"pink","rozowy":"pink",
+"pomarańczowy":"orange","pomaranczowy":"orange"
+};
+ 
+if(SpeechRecognition){
+recog=new SpeechRecognition();
+recog.lang='pl-PL';
+recog.continuous=true;
+ 
+recog.onresult=e=>{
+const transcript=e.results[e.resultIndex][0].transcript.toLowerCase().trim();
+document.getElementById('voiceStatus').textContent="Rozpoznano: "+transcript;
+document.getElementById('voiceColorText').textContent=transcript;
+ 
+let detected=null;
+Object.keys(colorMap).forEach(key=>{
+  if(transcript.includes(key)){
+   detected=colorMap[key];
+  }
+});
+ 
+if(detected){
+  document.body.style.backgroundColor=detected;
+  fill(detected);
+}
+};
+ 
+document.getElementById('btnVoiceStart').onclick=async()=>{
+  await navigator.mediaDevices.getUserMedia({audio:true});
+  isListening=true;
+  recog.start();
+};
+ 
+document.getElementById('btnVoiceStop').onclick=()=>{
+  isListening=false;
+  recog.stop();
+};
+}else{
+document.getElementById('voiceStatus').textContent="Brak obsługi Web Speech API (użyj Chrome)";
+}
+ 
+/* ---------- JASNOŚĆ ---------- */
+const brightnessSlider=document.getElementById('brightnessSlider');
+const brightnessValue=document.getElementById('brightnessValue');
+ 
+brightnessSlider.oninput=()=>{
+brightness=Number(brightnessSlider.value);
+brightnessValue.textContent=brightness;
+ 
+cells.forEach(c=>{
+  const baseStr=c.dataset.baseColor||'0,0,0';
+  const base=baseStr.split(',').map(Number);
+  const scaled=base.map(x=>x*brightness/255|0);
+  c.style.background=`rgb(${scaled[0]},${scaled[1]},${scaled[2]})`;
+});
+};
+ 
+</script>
 </body>
 </html>

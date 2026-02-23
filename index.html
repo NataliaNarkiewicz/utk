@@ -1,165 +1,252 @@
 <!DOCTYPE html>
 <html lang="pl">
 <head>
-  <meta charset="UTF-8" />
-  <title>Zmiana koloru głosem + BLE</title>
-  <style>
-    body {
-      margin: 0;
-      height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      font-family: sans-serif;
-      transition: background-color 0.3s;
-    }
-    button {
-      padding: 10px 20px;
-      font-size: 18px;
-      cursor: pointer;
-      margin: 10px;
-    }
-    #status, #last {
-      margin-top: 15px;
-      font-size: 16px;
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RGB Lamp Controller Bluetooth + Voice</title>
+
+<style>
+body { background:#111; color:white; font-family:Arial; margin:0; transition:background 0.3s;}
+header { background:#222; padding:1rem; text-align:center; font-size:1.5rem }
+nav { display:flex; justify-content:center; background:#333; flex-wrap:wrap }
+nav button { background:none; border:none; color:#ccc; padding:1rem 1.5rem; cursor:pointer }
+nav button.active { background:#555; color:white }
+main { padding:1rem }
+section { display:none }
+
+#grid {
+display:grid;
+grid-template-columns:repeat(9,40px);
+gap:4px;
+justify-content:center;
+}
+
+.cell {
+width:40px;
+height:40px;
+background:black;
+border-radius:4px;
+cursor:pointer;
+}
+
+.color-circle {
+width:35px;
+height:35px;
+border-radius:50%;
+display:inline-block;
+margin:5px;
+cursor:pointer;
+border:3px solid transparent;
+}
+.color-circle.selected { border-color:yellow }
+
+button { padding:0.5rem 1rem; margin:5px; background:#444; color:white; border:none; border-radius:4px }
+input[type=range]{ margin:5px; }
+</style>
 </head>
+
 <body>
-  <h1>Powiedz kolor, a tło się zmieni</h1>
-  <button id="startBtn">🎤 Start nasłuchiwania</button>
-  <button id="bleBtn">🔵 Połącz z ESP32 (BLE)</button>
-  <div id="status">Mikrofon wyłączony</div>
-  <div id="last">Ostatnio rozpoznane: —</div>
 
-  <script>
-    /* -----------------------------------
-       BLE – Twoje UUID (NIE ZMIENIAM)
-    ----------------------------------- */
-    const SERVICE_UUID = '12345678-1234-1234-1234-1234567890ab';
-    const CHARACTERISTIC_UUID = '87654321-4321-4321-4321-0987654321ba';
+<header>RGB Lamp Controller Bluetooth + Voice</header>
 
-    let bleDevice = null;
-    let bleCharacteristic = null;
+<nav>
+<button id="btnConnect" class="active">Połączenie</button>
+<button id="btnGrid">Siatka LED</button>
+<button id="btnVoice">Głos</button>
+<button id="btnBrightness">Jasność</button>
+</nav>
 
-    async function connectBLE() {
-      try {
-        bleDevice = await navigator.bluetooth.requestDevice({
-          filters: [{ services: [SERVICE_UUID] }]
-        });
+<main>
 
-        const server = await bleDevice.gatt.connect();
-        const service = await server.getPrimaryService(SERVICE_UUID);
-        bleCharacteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
+<section id="connectionPage">
+<button id="btnRequestBluetooth">🔵 Połącz z ESP32 (BLE)</button>
+<p id="connStatus">Nie połączono</p>
+</section>
 
-        document.getElementById("status").textContent = "Połączono z ESP32 przez BLE";
-      } catch (err) {
-        console.error(err);
-        document.getElementById("status").textContent = "Błąd połączenia BLE";
-      }
-    }
+<section id="gridPage">
+<div>
+<div class="color-circle selected" id="red" style="background:red"></div>
+<div class="color-circle" id="green" style="background:green"></div>
+<div class="color-circle" id="blue" style="background:blue"></div>
+<div class="color-circle" id="yellow" style="background:yellow"></div>
+<div class="color-circle" id="purple" style="background:purple"></div>
+<div class="color-circle" id="orange" style="background:orange"></div>
+<div class="color-circle" id="pink" style="background:pink"></div>
+</div>
 
-    async function sendColorBLE(color) {
-      if (!bleCharacteristic) {
-        console.warn("Brak połączenia BLE");
-        return;
-      }
+<div id="grid"></div>
+<button id="btnSendGrid">Wyślij do lampy</button>
+<button id="btnClearGrid">Wyczyść</button>
+</section>
 
-      const encoder = new TextEncoder();
-      const data = encoder.encode(color);
+<section id="voicePage">
+<h3>Sterowanie głosem 🎤</h3>
+<button id="btnVoiceStart">Start</button>
+<p id="voiceStatus">Nieaktywny</p>
+<p id="voiceText"></p>
+</section>
 
-      try {
-        await bleCharacteristic.writeValue(data);
-        console.log("Wysłano BLE:", color);
-      } catch (err) {
-        console.error("Błąd BLE:", err);
-      }
-    }
+<section id="brightnessPage">
+<h3>Regulacja jasności</h3>
+<input type="range" id="brightnessSlider" min="0" max="255" value="255">
+<p id="brightnessValue">255</p>
+</section>
 
-    /* -----------------------------------
-       Rozpoznawanie mowy
-    ----------------------------------- */
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+</main>
 
-    if (!SpeechRecognition) {
-      alert("Twoja przeglądarka nie wspiera Web Speech API. Użyj Google Chrome.");
-    } else {
-      const recognition = new SpeechRecognition();
-      recognition.lang = "pl-PL";
-      recognition.continuous = false;
-      recognition.interimResults = false;
+<script>
+const NUM_LEDS = 81;
+let brightness = 255;
 
-      const startBtn = document.getElementById("startBtn");
-      const bleBtn = document.getElementById("bleBtn");
-      const statusEl = document.getElementById("status");
-      const lastEl = document.getElementById("last");
+const SERVICE_UUID='12345678-1234-1234-1234-1234567890ab';
+const CHAR_UUID='87654321-4321-4321-4321-0987654321ba';
 
-      const colorMap = {
-        "czerwony": "red",
-        "zielony": "green",
-        "niebieski": "blue",
-        "żółty": "yellow",
-        "zolty": "yellow",
-        "biały": "white",
-        "bialy": "white",
-        "czarny": "black",
-        "różowy": "pink",
-        "rozowy": "pink",
-        "pomarańczowy": "orange",
-        "pomaranczowy": "orange",
-        "fioletowy": "purple",
-        "szary": "gray",
-        "brązowy": "brown",
-        "brazowy": "brown",
-        "turkusowy": "turquoise"
-      };
+let writeCharacteristic=null;
+let cells=[];
+let selectedColor='red';
 
-      function setBackgroundFromWord(word) {
-        const lower = word.toLowerCase().trim();
+const colors={
+red:[255,0,0],
+green:[0,255,0],
+blue:[0,0,255],
+yellow:[255,255,0],
+orange:[255,165,0],
+purple:[128,0,128],
+pink:[255,20,147],
+black:[0,0,0]
+};
 
-        if (colorMap[lower]) {
-          document.body.style.backgroundColor = colorMap[lower];
-          return colorMap[lower];
-        }
+/* ---------------- NAWIGACJA ---------------- */
+const pages={
+btnConnect:'connectionPage',
+btnGrid:'gridPage',
+btnVoice:'voicePage',
+btnBrightness:'brightnessPage'
+};
 
-        const test = document.createElement("div");
-        test.style.color = lower;
-        if (test.style.color) {
-          document.body.style.backgroundColor = lower;
-          return lower;
-        }
+Object.keys(pages).forEach(id=>{
+document.getElementById(id).onclick=()=>{
+document.querySelectorAll('section').forEach(s=>s.style.display='none');
+document.getElementById(pages[id]).style.display='block';
+document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
+document.getElementById(id).classList.add('active');
+}
+});
+document.getElementById('connectionPage').style.display='block';
 
-        return null;
-      }
+/* ---------------- BLE ---------------- */
+document.getElementById('btnRequestBluetooth').onclick=async()=>{
+try{
+const device=await navigator.bluetooth.requestDevice({
+filters:[{services:[SERVICE_UUID]}]
+});
+const server=await device.gatt.connect();
+const service=await server.getPrimaryService(SERVICE_UUID);
+writeCharacteristic=await service.getCharacteristic(CHAR_UUID);
+document.getElementById('connStatus').textContent="Połączono!";
+}catch(e){
+document.getElementById('connStatus').textContent="Błąd: "+e.message;
+}
+};
 
-      startBtn.addEventListener("click", () => {
-        recognition.start();
-        statusEl.textContent = "Nasłuchiwanie… Powiedz nazwę koloru.";
-      });
+async function sendTextBLE(text){
+if(!writeCharacteristic) return;
+const encoder=new TextEncoder();
+await writeCharacteristic.writeValue(encoder.encode(text));
+}
 
-      bleBtn.addEventListener("click", connectBLE);
+/* ---------------- GRID ---------------- */
+const grid=document.getElementById('grid');
+for(let i=0;i<NUM_LEDS;i++){
+const c=document.createElement('div');
+c.className='cell';
+c.dataset.baseColor='0,0,0';
+c.onclick=()=>{
+const base=colors[selectedColor];
+c.dataset.baseColor=base.join(',');
+const scaled=base.map(v=>v*brightness/255|0);
+c.style.background=`rgb(${scaled[0]},${scaled[1]},${scaled[2]})`;
+};
+grid.appendChild(c);
+cells.push(c);
+}
 
-      recognition.onresult = (event) => {
-        const transcript = event.results[0][0].transcript;
-        lastEl.textContent = "Ostatnio rozpoznane: " + transcript;
+document.querySelectorAll('.color-circle').forEach(c=>{
+c.onclick=()=>{
+document.querySelectorAll('.color-circle').forEach(x=>x.classList.remove('selected'));
+c.classList.add('selected');
+selectedColor=c.id;
+};
+});
 
-        const cssColor = setBackgroundFromWord(transcript);
+document.getElementById('btnSendGrid').onclick=()=>{
+if(!writeCharacteristic) return;
+let data=new Uint8Array(NUM_LEDS*3);
+cells.forEach((c,i)=>{
+let rgb=c.style.background.match(/\d+/g);
+if(!rgb) rgb=[0,0,0];
+data.set(rgb.map(Number),i*3);
+});
+writeCharacteristic.writeValue(data);
+};
 
-        if (!cssColor) {
-          statusEl.textContent = "Nie rozpoznano koloru: " + transcript;
-        } else {
-          statusEl.textContent = "Kolor ustawiony: " + cssColor;
+document.getElementById('btnClearGrid').onclick=()=>{
+cells.forEach(c=>c.style.background='rgb(0,0,0)');
+};
 
-          // Wysyłamy kolor do ESP32 przez BLE
-          sendColorBLE(cssColor);
-        }
-      };
+/* ---------------- VOICE ---------------- */
+const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
+const colorMap={
+"czerwony":"red",
+"zielony":"green",
+"niebieski":"blue",
+"żółty":"yellow",
+"zolty":"yellow",
+"różowy":"pink",
+"rozowy":"pink",
+"pomarańczowy":"orange",
+"pomaranczowy":"orange",
+"fioletowy":"purple"
+};
 
-      recognition.onerror = (event) => {
-        statusEl.textContent = "Błąd rozpoznawania: " + event.error;
-      };
-    }
-  </script>
+if(SpeechRecognition){
+const recognition=new SpeechRecognition();
+recognition.lang="pl-PL";
+
+document.getElementById('btnVoiceStart').onclick=()=>{
+recognition.start();
+document.getElementById('voiceStatus').textContent="Nasłuchiwanie...";
+};
+
+recognition.onresult=e=>{
+const text=e.results[0][0].transcript.toLowerCase().trim();
+document.getElementById('voiceText').textContent=text;
+
+if(colorMap[text]){
+document.body.style.backgroundColor=colorMap[text];
+fillColor(colorMap[text]);
+sendTextBLE(colorMap[text]); // wysyła nazwę koloru jak w drugim kodzie
+}
+};
+
+}else{
+document.getElementById('voiceStatus').textContent="Brak obsługi Web Speech API (Chrome)";
+}
+
+function fillColor(color){
+const base=colors[color];
+const col=base.map(v=>v*brightness/255|0);
+cells.forEach(c=>{
+c.style.background=`rgb(${col[0]},${col[1]},${col[2]})`;
+});
+}
+
+/* ---------------- JASNOŚĆ ---------------- */
+const slider=document.getElementById('brightnessSlider');
+slider.oninput=()=>{
+brightness=Number(slider.value);
+document.getElementById('brightnessValue').textContent=brightness;
+};
+</script>
 </body>
 </html>

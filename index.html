@@ -2,7 +2,7 @@
 <html lang="pl">
 <head>
   <meta charset="UTF-8" />
-  <title>Zmiana koloru głosem</title>
+  <title>Zmiana koloru głosem + BLE</title>
   <style>
     body {
       margin: 0;
@@ -18,6 +18,7 @@
       padding: 10px 20px;
       font-size: 18px;
       cursor: pointer;
+      margin: 10px;
     }
     #status, #last {
       margin-top: 15px;
@@ -27,15 +28,15 @@
 </head>
 <body>
   <h1>Powiedz kolor, a tło się zmieni</h1>
-  <button id="startBtn">Start nasłuchiwania</button>
-  <button id="bleBtn">Połącz z ESP32 (BLE)</button>
+  <button id="startBtn">🎤 Start nasłuchiwania</button>
+  <button id="bleBtn">🔵 Połącz z ESP32 (BLE)</button>
   <div id="status">Mikrofon wyłączony</div>
   <div id="last">Ostatnio rozpoznane: —</div>
 
   <script>
-    /* -------------------------------
-       BLE – Twoje UUID
-    --------------------------------*/
+    /* -----------------------------------
+       BLE – Twoje UUID (NIE ZMIENIAM)
+    ----------------------------------- */
     const SERVICE_UUID = '12345678-1234-1234-1234-1234567890ab';
     const CHARACTERISTIC_UUID = '87654321-4321-4321-4321-0987654321ba';
 
@@ -76,11 +77,13 @@
       }
     }
 
-    // Obsługa różnych nazw interfejsu
+    /* -----------------------------------
+       Rozpoznawanie mowy
+    ----------------------------------- */
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
     if (!SpeechRecognition) {
-      alert("Twoja przeglądarka nie wspiera Web Speech API. Spróbuj w Google Chrome.");
+      alert("Twoja przeglądarka nie wspiera Web Speech API. Użyj Google Chrome.");
     } else {
       const recognition = new SpeechRecognition();
       recognition.lang = "pl-PL";
@@ -92,7 +95,6 @@
       const statusEl = document.getElementById("status");
       const lastEl = document.getElementById("last");
 
-      // Mapowanie polskich nazw kolorów na CSS
       const colorMap = {
         "czerwony": "red",
         "zielony": "green",
@@ -149,7 +151,7 @@
         } else {
           statusEl.textContent = "Kolor ustawiony: " + cssColor;
 
-          // WYSYŁAMY KOLOR DO ESP32 PRZEZ BLE
+          // Wysyłamy kolor do ESP32 przez BLE
           sendColorBLE(cssColor);
         }
       };

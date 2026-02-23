@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>RGB Lamp Controller Voice + Grid</title>
+<title>RGB Lamp Voice Grid</title>
 <style>
 body { background:#111; color:white; font-family:Arial; margin:0; transition:background 0.3s; }
 header { background:#222; padding:1rem; text-align:center; font-size:1.5rem }
@@ -19,7 +19,7 @@ button { padding:0.5rem 1rem; margin:5px; background:#444; color:white; border:n
 </head>
 <body>
 
-<header>RGB Lamp Controller Voice + Grid</header>
+<header>RGB Lamp Voice Grid</header>
 
 <nav>
 <button id="btnConnect" class="active">Połączenie</button>
@@ -126,7 +126,7 @@ function fill(color){
 /* Wysyłanie koloru do ESP32 */
 async function sendGrid(){
   if(!writeCharacteristic){ alert("Najpierw połącz z ESP32!"); return; }
-  if(!currentColor){ alert("Nie wybrano koloru!"); return; }
+  if(!currentColor){ alert("Nie wykryto koloru!"); return; }
   const rgb = colors[currentColor];
   let data = new Uint8Array(NUM_LEDS*3);
   for(let i=0;i<NUM_LEDS;i++){
@@ -152,8 +152,12 @@ if(SpeechRecognition){
     const transcript=e.results[e.resultIndex][0].transcript.toLowerCase().trim();
     document.getElementById('voiceStatus').textContent="Rozpoznano: "+transcript;
     document.getElementById('voiceColorText').textContent=transcript;
+
     let detected=null;
-    Object.keys(colorMap).forEach(key=>{ if(transcript.includes(key)) detected=colorMap[key]; });
+    Object.keys(colorMap).forEach(key=>{
+      if(transcript.includes(key)) detected=colorMap[key];
+    });
+
     if(detected){
       fill(detected);
       document.body.style.backgroundColor=detected;
@@ -161,7 +165,7 @@ if(SpeechRecognition){
   };
 
   recog.onerror=e=>{ document.getElementById('voiceStatus').textContent="Błąd: "+e.error; };
-  recog.onend=()=>{ if(isListening){ try{ recog.start(); }catch(e){} } };
+  recog.onend=()=>{ if(isListening) recog.start(); };
 
   document.getElementById('btnVoiceStart').onclick=async()=>{
     try{
@@ -176,17 +180,19 @@ if(SpeechRecognition){
 
   document.getElementById('btnVoiceStop').onclick=()=>{
     isListening=false;
-    try{ recog.stop(); }catch(e){}
+    recog.stop();
     document.getElementById('btnVoiceStart').disabled=false;
     document.getElementById('btnVoiceStop').disabled=true;
     document.getElementById('voiceStatus').textContent="Zatrzymano nasłuchiwanie";
   };
+
 }else{
   document.getElementById('voiceStatus').textContent="Brak obsługi Web Speech API (Chrome)";
 }
 
 /* ---------- WYŚLIJ ---------- */
 document.getElementById('btnSendGrid').onclick=sendGrid;
+
 </script>
 </body>
 </html>

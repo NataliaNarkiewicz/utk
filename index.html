@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>RGB Lamp Voice Grid</title>
+<title>RGB Lamp Controller Voice + Grid</title>
 <style>
 body { background:#111; color:white; font-family:Arial; margin:0; transition:background 0.3s; }
 header { background:#222; padding:1rem; text-align:center; font-size:1.5rem }
@@ -17,9 +17,10 @@ section { display:none }
 button { padding:0.5rem 1rem; margin:5px; background:#444; color:white; border:none; border-radius:4px }
 </style>
 </head>
-
 <body>
-<header>RGB Lamp Voice Grid</header>
+
+<header>RGB Lamp Controller Voice + Grid</header>
+
 <nav>
 <button id="btnConnect" class="active">Połączenie</button>
 <button id="btnVoice">Głos</button>
@@ -70,23 +71,35 @@ const colorMap = {
 "pomarańczowy":"orange","pomaranczowy":"orange"
 };
 
-/* ---------- BLE ---------- */
+/* ---------- NAWIGACJA ---------- */
+const pages = {btnConnect:'connectionPage', btnVoice:'voicePage'};
+Object.keys(pages).forEach(id=>{
+  document.getElementById(id).onclick=()=>{
+    document.querySelectorAll('section').forEach(s=>s.style.display='none');
+    document.getElementById(pages[id]).style.display='block';
+    document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+  }
+});
+document.getElementById('connectionPage').style.display='block';
+
+/* ---------- BLUETOOTH ---------- */
 const SERVICE_UUID='12345678-1234-1234-1234-1234567890ab';
 const CHAR_UUID='87654321-4321-4321-4321-0987654321ba';
 
 document.getElementById('btnRequestBluetooth').onclick=async()=>{
-try{
-  const device=await navigator.bluetooth.requestDevice({
-    acceptAllDevices:true,
-    optionalServices:[SERVICE_UUID]
-  });
-  const server=await device.gatt.connect();
-  const service=await server.getPrimaryService(SERVICE_UUID);
-  writeCharacteristic=await service.getCharacteristic(CHAR_UUID);
-  document.getElementById('connStatus').textContent="Połączono z "+device.name;
-}catch(e){
-  document.getElementById('connStatus').textContent="Błąd: "+e.message;
-}
+  try{
+    const device = await navigator.bluetooth.requestDevice({
+      acceptAllDevices:true,
+      optionalServices:[SERVICE_UUID]
+    });
+    const server = await device.gatt.connect();
+    const service = await server.getPrimaryService(SERVICE_UUID);
+    writeCharacteristic = await service.getCharacteristic(CHAR_UUID);
+    document.getElementById('connStatus').textContent="Połączono z "+device.name;
+  }catch(e){
+    document.getElementById('connStatus').textContent="Błąd: "+e.message;
+  }
 };
 
 /* ---------- GRID ---------- */
@@ -112,7 +125,7 @@ function fill(color){
 
 /* Wysyłanie koloru do ESP32 */
 async function sendGrid(){
-  if(!writeCharacteristic) { alert("Najpierw połącz z ESP32!"); return; }
+  if(!writeCharacteristic){ alert("Najpierw połącz z ESP32!"); return; }
   if(!currentColor){ alert("Nie wybrano koloru!"); return; }
   const rgb = colors[currentColor];
   let data = new Uint8Array(NUM_LEDS*3);
@@ -127,8 +140,7 @@ async function sendGrid(){
 
 /* ---------- GŁOS ---------- */
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-let recog=null;
-let isListening=false;
+let recog=null, isListening=false;
 
 if(SpeechRecognition){
   recog=new SpeechRecognition();
@@ -141,12 +153,10 @@ if(SpeechRecognition){
     document.getElementById('voiceStatus').textContent="Rozpoznano: "+transcript;
     document.getElementById('voiceColorText').textContent=transcript;
     let detected=null;
-    Object.keys(colorMap).forEach(key=>{
-      if(transcript.includes(key)) detected=colorMap[key];
-    });
+    Object.keys(colorMap).forEach(key=>{ if(transcript.includes(key)) detected=colorMap[key]; });
     if(detected){
-      fill(detected); // koloryzuje całą siatkę
-      document.body.style.backgroundColor=detected; // wizualizacja w tle
+      fill(detected);
+      document.body.style.backgroundColor=detected;
     }
   };
 
@@ -177,18 +187,6 @@ if(SpeechRecognition){
 
 /* ---------- WYŚLIJ ---------- */
 document.getElementById('btnSendGrid').onclick=sendGrid;
-
-/* ---------- JASNOŚĆ ---------- */
-const brightnessSlider=document.getElementById('brightnessSlider');
-brightnessSlider?.addEventListener('input',()=>{
-  brightness=Number(brightnessSlider.value);
-  cells.forEach(c=>{
-    const baseStr=c.dataset.baseColor||'0,0,0';
-    const base=baseStr.split(',').map(Number);
-    const scaled=base.map(x=>x*brightness/255|0);
-    c.style.background=`rgb(${scaled[0]},${scaled[1]},${scaled[2]})`;
-  });
-});
 </script>
 </body>
 </html>

@@ -1,356 +1,1998 @@
+https://buymeacoffee.com/andevweb/e/379329
+ 
 <!DOCTYPE html>
 <html lang="pl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>RGB Lamp Controller Bluetooth</title>
-
+<title>Particle Mouse Effect</title>
 <style>
-body { background:#111; color:white; font-family:Arial; margin:0 }
-header { background:#222; padding:1rem; text-align:center; font-size:1.5rem }
-nav { display:flex; justify-content:center; background:#333; flex-wrap:wrap }
-nav button { background:none; border:none; color:#ccc; padding:1rem 2rem; cursor:pointer }
-nav button.active { background:#555; color:white }
-main { padding:1rem }
-
-section { display:none }
-
-#grid {
-  display:grid;
-  grid-template-columns:repeat(9,40px);
-  gap:4px;
-  justify-content:center;
-}
-
-.cell {
-  width:40px;
-  height:40px;
-  background:black;
-  border-radius:4px;
-  cursor:pointer;
-}
-
-.color-circle {
-  width:35px;
-  height:35px;
-  border-radius:50%;
-  display:inline-block;
-  margin:5px;
-  cursor:pointer;
-  border:3px solid transparent;
-}
-.color-circle.selected { border-color:yellow }
-
-button { padding:0.5rem 1rem; margin:5px; background:#444; color:white; border:none; border-radius:4px }
-input[type=range]{ margin:5px; }
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+  body {
+    background: #1e1e1e;
+    overflow: hidden;
+  }
+  canvas {
+    display: block;
+  }
 </style>
 </head>
-
 <body>
-
-<header>RGB Lamp Controller Bluetooth</header>
-
-<nav>
-<button id="btnConnect" class="active">Połączenie</button>
-<button id="btnGrid">Siatka LED</button>
-<button id="btnMusic">Muzyka</button>
-<button id="btnMods">Mody</button>
-<button id="btnVoice">Głos</button>
-<button id="btnBrightness">Jasność</button>
-</nav>
-
-<main>
-
-<section id="connectionPage">
-<button id="btnRequestBluetooth">Połącz Bluetooth</button>
-<p id="connStatus">Nie połączono</p>
-</section>
-
-<section id="gridPage">
-<div>
-<div class="color-circle selected" id="red" style="background:red"></div>
-<div class="color-circle" id="green" style="background:green"></div>
-<div class="color-circle" id="blue" style="background:blue"></div>
-<div class="color-circle" id="yellow" style="background:yellow"></div>
-<div class="color-circle" id="purple" style="background:purple"></div>
-<div class="color-circle" id="orange" style="background:orange"></div>
-<div class="color-circle" id="pink" style="background:pink"></div>
-</div>
-
-<div id="grid"></div>
-<button id="btnSendGrid">Wyślij do lampy</button>
-<button id="btnClearGrid">Wyczyść</button>
-<p id="sendStatus"></p>
-</section>
-
-<section id="musicPage">
-<p>Mod muzyczny (do rozbudowy)</p>
-</section>
-
-<section id="modsPage">
-<h3>Efekty LED</h3>
-<button onclick="startBlink()">Miganie</button>
-<button onclick="startRainbow()">Tęcza</button>
-<button onclick="startPulse()">Pulsowanie</button>
-<button onclick="startRandom()">Losowe</button>
-<button onclick="stopEffects()">Stop</button>
-</section>
-
-<section id="voicePage">
-<h3>Sterowanie głosem 🎤</h3>
-<button id="btnVoiceStart">Start nasłuchiwania</button>
-<button id="btnVoiceStop" disabled>Stop nasłuchiwania</button>
-<p id="voiceStatus">Nieaktywny</p>
-</section>
-
-<section id="brightnessPage">
-<h3>Regulacja jasności</h3>
-<input type="range" id="brightnessSlider" min="0" max="255" value="255">
-<p id="brightnessValue">255</p>
-</section>
-
-</main>
-
+ 
+<canvas id="particleCanvas"></canvas>
+ 
 <script>
-const NUM_LEDS = 81;
-let brightness = 255;
-const colors = {
-  red:[255,0,0],
-  green:[0,255,0],
-  blue:[0,0,255],
-  yellow:[255,255,0],
-  orange:[255,165,0],
-  purple:[128,0,128],
-  pink:[255,20,147],
-  black:[0,0,0]
-};
-
-let writeCharacteristic = null;
-let cells = [];
-let selectedColor = 'red';
-let effectInterval = null;
-
-/* ---------- NAWIGACJA ---------- */
-const pages = {
-  btnConnect:'connectionPage',
-  btnGrid:'gridPage',
-  btnMusic:'musicPage',
-  btnMods:'modsPage',
-  btnVoice:'voicePage',
-  btnBrightness:'brightnessPage'
-};
-
-Object.keys(pages).forEach(id=>{
-  document.getElementById(id).onclick=()=>{
-    document.querySelectorAll('section').forEach(s=>s.style.display='none');
-    document.getElementById(pages[id]).style.display='block';
-    document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
-    document.getElementById(id).classList.add('active');
-  }
+function init(elemid) {
+  let canvas = document.getElementById(elemid),
+      c = canvas.getContext("2d"),
+      w = (canvas.width = window.innerWidth),
+      h = (canvas.height = window.innerHeight);
+  c.fillStyle = "rgba(30,30,30,1)";
+  c.fillRect(0, 0, w, h);
+  return { c, canvas, w, h };
+}
+ 
+let mouse = { x: null, y: null };
+ 
+window.addEventListener("mousemove", e => {
+  mouse.x = e.clientX;
+  mouse.y = e.clientY;
 });
-document.getElementById('connectionPage').style.display='block';
-
-/* ---------- BLUETOOTH ---------- */
-const SERVICE_UUID='12345678-1234-1234-1234-1234567890ab';
-const CHAR_UUID='87654321-4321-4321-4321-0987654321ba';
-
-document.getElementById('btnRequestBluetooth').onclick=async()=>{
-  try {
-    const device=await navigator.bluetooth.requestDevice({
-      acceptAllDevices:true,
-      optionalServices:[SERVICE_UUID]
-    });
-    const server=await device.gatt.connect();
-    const service=await server.getPrimaryService(SERVICE_UUID);
-    writeCharacteristic=await service.getCharacteristic(CHAR_UUID);
-    document.getElementById('connStatus').textContent="Połączono!";
-  } catch(e){
-    document.getElementById('connStatus').textContent="Błąd: "+e.message;
-  }
-};
-  /* ---------- GRID TWORZENIE ---------- */
-const grid=document.getElementById('grid');
-for(let i=0;i<NUM_LEDS;i++){
-  const c=document.createElement('div');
-  c.className='cell';
-  c.dataset.baseColor = '0,0,0';
-  c.onclick=()=>{
-    const base = colors[selectedColor];
-    c.dataset.baseColor = base.join(',');
-    const scaled = base.map(v=>v*brightness/255|0);
-    c.style.background=`rgb(${scaled[0]},${scaled[1]},${scaled[2]})`;
-  };
-  grid.appendChild(c);
-  cells.push(c);
-}
-
-document.querySelectorAll('.color-circle').forEach(c=>{
-  c.onclick=()=>{
-    document.querySelectorAll('.color-circle').forEach(x=>x.classList.remove('selected'));
-    c.classList.add('selected');
-    selectedColor=c.id;
-  };
+ 
+window.addEventListener("resize", () => {
+  let res = init("particleCanvas");
+  c = res.c;
+  w = res.w;
+  h = res.h;
 });
-
-document.getElementById('btnSendGrid').onclick=sendGrid;
-document.getElementById('btnClearGrid').onclick=clearGrid;
-
-function sendGrid(){
-  if(!writeCharacteristic) return;
-  let data=new Uint8Array(NUM_LEDS*3);
-  cells.forEach((c,i)=>{
-    let rgb=c.style.background.match(/\d+/g);
-    if(!rgb) rgb=[0,0,0];
-    data.set(rgb.map(Number),i*3);
+ 
+let { c, canvas, w, h } = init("particleCanvas");
+let particles = [];
+ 
+const PARTICLE_COUNT = 120;
+ 
+for (let i = 0; i < PARTICLE_COUNT; i++) {
+  particles.push({
+    x: Math.random() * w,
+    y: Math.random() * h,
+    vx: (Math.random() - 0.5) * 1.5,
+    vy: (Math.random() - 0.5) * 1.5
   });
-  writeCharacteristic.writeValue(data);
 }
-
-function clearGrid(){
-  cells.forEach(c=>{
-    c.dataset.baseColor = '0,0,0';
-    c.style.background='rgb(0,0,0)';
-  });
-  sendGrid();
-}
-
-/* ---------- MODY ---------- */
-function stopEffects(){ clearInterval(effectInterval); }
-
-function fill(color){
-  const base = colors[color];
-  const col = base.map(v=>v*brightness/255|0);
-  cells.forEach(c=>{
-    c.dataset.baseColor = base.join(',');
-    c.style.background=`rgb(${col[0]},${col[1]},${col[2]})`;
-  });
-  sendGrid();
-}
-
-function startBlink(){
-  stopEffects();
-  let on=true;
-  effectInterval=setInterval(()=>{
-    fill(on?'red':'black');
-    on=!on;
-  },500);
-}
-
-function startRainbow(){
-  stopEffects();
-  let cols=Object.keys(colors);
-  let i=0;
-  effectInterval=setInterval(()=>fill(cols[i++%cols.length]),300);
-}
-
-function startPulse(){
-  stopEffects();
-  let v=0,dir=1;
-  effectInterval=setInterval(()=>{
-    let base=[v,0,255-v];
-    const col=base.map(x=>x*brightness/255|0);
-    cells.forEach(c=>{
-      c.dataset.baseColor = base.join(',');
-      c.style.background=`rgb(${col[0]},${col[1]},${col[2]})`;
-    });
-    sendGrid();
-    v+=dir*15;
-    if(v>=255||v<=0) dir*=-1;
-  },100);
-}
-
-function startRandom(){
-  stopEffects();
-  effectInterval=setInterval(()=>{
-    cells.forEach(c=>{
-      let r=Math.random()*255|0;
-      let g=Math.random()*255|0;
-      let b=Math.random()*255|0;
-      c.dataset.baseColor = `${r},${g},${b}`;
-      r=r*brightness/255|0; g=g*brightness/255|0; b=b*brightness/255|0;
-      c.style.background=`rgb(${r},${g},${b})`;
-    });
-    sendGrid();
-  },300);
-}
-
-/* ---------- GŁOS ---------- */
-const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-let recog = null;
-let isListening = false;
-
-if(!SpeechRecognition){
-  document.getElementById('voiceStatus').textContent = "Twoja przeglądarka nie obsługuje rozpoznawania mowy.";
-  document.getElementById('btnVoiceStart').disabled = true;
-  document.getElementById('btnVoiceStop').disabled = true;
-} else {
-  recog = new SpeechRecognition();
-  recog.lang='pl-PL';
-  recog.continuous=true;
-  recog.interimResults=false;
-
-  recog.onresult=e=>{
-    const result = e.results[e.resultIndex];
-    if(!result || !result[0]) return;
-    const text=result[0].transcript.toLowerCase();
-    document.getElementById('voiceStatus').textContent="Rozpoznano: " + text;
-
-    if(text.includes('czerw')) fill('red');
-    else if(text.includes('niebies')) fill('blue');
-    else if(text.includes('zielon')) fill('green');
-    else if(text.includes('żół') || text.includes('zol')) fill('yellow');
-    else if(text.includes('pomara')) fill('orange');
-    else if(text.includes('fiolet')) fill('purple');
-    else if(text.includes('róż') || text.includes('roz')) fill('pink');
-  };
-
-  recog.onerror = e => {
-    document.getElementById('voiceStatus').textContent = "Błąd rozpoznawania: " + e.error;
-  };
-
-  recog.onend = () => {
-    if(isListening){
-      try { recog.start(); } catch(e){}
+ 
+function draw() {
+  c.fillStyle = "rgba(30,30,30,0.2)";
+  c.fillRect(0, 0, w, h);
+ 
+  for (let i = 0; i < particles.length; i++) {
+    let p = particles[i];
+ 
+    p.x += p.vx;
+    p.y += p.vy;
+ 
+    if (p.x < 0 || p.x > w) p.vx *= -1;
+    if (p.y < 0 || p.y > h) p.vy *= -1;
+ 
+    c.beginPath();
+    c.arc(p.x, p.y, 2, 0, Math.PI * 2);
+    c.fillStyle = "#00ffff";
+    c.fill();
+ 
+    for (let j = i + 1; j < particles.length; j++) {
+      let p2 = particles[j];
+      let dx = p.x - p2.x;
+      let dy = p.y - p2.y;
+      let dist = Math.sqrt(dx * dx + dy * dy);
+ 
+      if (dist < 110) {
+        c.beginPath();
+        c.strokeStyle = "rgba(0,255,255," + (1 - dist / 110) + ")";
+        c.moveTo(p.x, p.y);
+        c.lineTo(p2.x, p2.y);
+        c.stroke();
+      }
     }
-  };
-
-  document.getElementById('btnVoiceStart').onclick=async()=>{
-    try{
-      await navigator.mediaDevices.getUserMedia({audio:true});
-      isListening = true;
-      recog.start();
-      document.getElementById('btnVoiceStart').disabled = true;
-      document.getElementById('btnVoiceStop').disabled = false;
-      document.getElementById('voiceStatus').textContent="Nasłuchiwanie...";
-    } catch(e){
-      document.getElementById('voiceStatus').textContent="Błąd mikrofonu: "+e.message;
+ 
+    if (mouse.x !== null && mouse.y !== null) {
+      let dx = p.x - mouse.x;
+      let dy = p.y - mouse.y;
+      let dist = Math.sqrt(dx * dx + dy * dy);
+ 
+      if (dist < 160) {
+        c.beginPath();
+        c.strokeStyle = "rgba(255,255,255," + (1 - dist / 160) + ")";
+        c.moveTo(p.x, p.y);
+        c.lineTo(mouse.x, mouse.y);
+        c.stroke();
+      }
     }
-  };
-
-  document.getElementById('btnVoiceStop').onclick=()=>{
-    isListening = false;
-    try { recog.stop(); } catch(e){}
-    document.getElementById('btnVoiceStart').disabled = false;
-    document.getElementById('btnVoiceStop').disabled = true;
-    document.getElementById('voiceStatus').textContent="Zatrzymano nasłuchiwanie";
-  };
+  }
+ 
+  requestAnimationFrame(draw);
 }
-
-/* ---------- JASNOŚĆ ---------- */
-const brightnessSlider=document.getElementById('brightnessSlider');
-const brightnessValue=document.getElementById('brightnessValue');
-brightnessSlider.oninput=()=>{
-  brightness=Number(brightnessSlider.value);
-  brightnessValue.textContent=brightness;
-
-  cells.forEach(c=>{
-    const baseStr = c.dataset.baseColor || '0,0,0';
-    const base = baseStr.split(',').map(Number);
-    const scaled = base.map(x=>x*brightness/255|0);
-    c.style.background=`rgb(${scaled[0]},${scaled[1]},${scaled[2]})`;
-  });
-};
+ 
+draw();
 </script>
-
+ 
 </body>
 </html>
+ 
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<title>Kawowe Tło + Karta 3D</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { overflow: hidden; font-family: "Poppins", sans-serif; }
+ 
+  canvas {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100vw;
+    height: 100vh;
+    display: block;
+    z-index: -1;
+  }
+ 
+  .card {
+    width: 380px;
+    padding: 30px;
+    background: rgba(245, 235, 220, 0.85);
+    border-radius: 20px;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.25);
+    backdrop-filter: blur(10px);
+    margin: 120px auto;
+    text-align: center;
+    transition: transform 0.2s ease-out;
+    transform-style: preserve-3d;
+  }
+ 
+  .card h1 {
+    color: #5a4634;
+    font-size: 26px;
+    margin-bottom: 10px;
+  }
+ 
+  .card p {
+    color: #6d5845;
+    font-size: 18px;
+  }
+</style>
+</head>
+<body>
+ 
+<canvas id="particleCanvas"></canvas>
+ 
+<div class="card" id="card">
+  <h1>Twój tytuł</h1>
+  <p>Twój tekst tutaj — możesz wpisać cokolwiek.</p>
+</div>
+ 
+<script>
+// ------------------ ANIMOWANE TŁO ------------------
+function init(elemid) {
+  let canvas = document.getElementById(elemid),
+      c = canvas.getContext("2d"),
+      w = (canvas.width = window.innerWidth),
+      h = (canvas.height = window.innerHeight);
+  c.fillStyle = "rgba(245,235,220,1)";
+  c.fillRect(0, 0, w, h);
+  return { c, canvas, w, h };
+}
+ 
+let mouse = { x: null, y: null };
+window.addEventListener("mousemove", e => {
+  mouse.x = e.clientX;
+  mouse.y = e.clientY;
+});
+ 
+let { c, canvas, w, h } = init("particleCanvas");
+let particles = [];
+ 
+const PARTICLE_COUNT = 110;
+ 
+for (let i = 0; i < PARTICLE_COUNT; i++) {
+  particles.push({
+    x: Math.random() * w,
+    y: Math.random() * h,
+    vx: (Math.random() - 0.5) * 1.2,
+    vy: (Math.random() - 0.5) * 1.2
+  });
+}
+ 
+function draw() {
+  c.fillStyle = "rgba(245,235,220,0.25)";
+  c.fillRect(0, 0, w, h);
+ 
+  for (let i = 0; i < particles.length; i++) {
+    let p = particles[i];
+ 
+    p.x += p.vx;
+    p.y += p.vy;
+ 
+    if (p.x < 0 || p.x > w) p.vx *= -1;
+    if (p.y < 0 || p.y > h) p.vy *= -1;
+ 
+    c.beginPath();
+    c.arc(p.x, p.y, 2, 0, Math.PI * 2);
+    c.fillStyle = "#a68b6a";
+    c.fill();
+ 
+    for (let j = i + 1; j < particles.length; j++) {
+      let p2 = particles[j];
+      let dx = p.x - p2.x;
+      let dy = p.y - p2.y;
+      let dist = Math.sqrt(dx * dx + dy * dy);
+ 
+      if (dist < 120) {
+        c.beginPath();
+        c.strokeStyle = "rgba(166,139,106," + (1 - dist / 120) + ")";
+        c.moveTo(p.x, p.y);
+        c.lineTo(p2.x, p2.y);
+        c.stroke();
+      }
+    }
+  }
+ 
+  requestAnimationFrame(draw);
+}
+ 
+draw();
+ 
+// ------------------ KARTA 3D ------------------
+const card = document.getElementById("card");
+ 
+document.addEventListener("mousemove", e => {
+  let x = (window.innerWidth / 2 - e.clientX) / 25;
+  let y = (window.innerHeight / 2 - e.clientY) / 25;
+  card.style.transform = `rotateY(${x}deg) rotateX(${y}deg)`;
+});
+</script>
+ 
+</body>
+</html>
+ 
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <title>Interaktywne beżowe tło</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+ 
+    body {
+      overflow: hidden;
+      font-family: system-ui, sans-serif;
+    }
+ 
+    .background {
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(circle at top left, #f7efe3, #e3d3bf);
+      z-index: -1;
+    }
+ 
+    canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+ 
+    .content {
+      position: relative;
+      z-index: 1;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #5b4a3a;
+      text-align: center;
+      padding: 2rem;
+    }
+ 
+    .card {
+      background: rgba(255, 248, 236, 0.85);
+      border-radius: 18px;
+      padding: 2.5rem 3rem;
+      box-shadow: 0 18px 45px rgba(0, 0, 0, 0.08);
+      backdrop-filter: blur(10px);
+      max-width: 480px;
+    }
+ 
+    .card h1 {
+      font-size: 2rem;
+      margin-bottom: 0.75rem;
+      letter-spacing: 0.03em;
+    }
+ 
+    .card p {
+      font-size: 0.98rem;
+      line-height: 1.6;
+      opacity: 0.85;
+    }
+  </style>
+</head>
+<body>
+  <div class="background">
+    <canvas id="bgCanvas"></canvas>
+  </div>
+ 
+  <div class="content">
+    <div class="card">
+      <h1>Beżowe, interaktywne tło</h1>
+      <p>
+        Poruszaj myszką, a delikatne kółka będą subtelnie reagować.
+        Możesz tu wstawić dowolną treść swojej strony.
+      </p>
+    </div>
+  </div>
+ 
+  <script>
+    const canvas = document.getElementById('bgCanvas');
+    const ctx = canvas.getContext('2d');
+ 
+    let width = window.innerWidth;
+    let height = window.innerHeight;
+    canvas.width = width;
+    canvas.height = height;
+ 
+    const mouse = { x: width / 2, y: height / 2 };
+    const circles = [];
+    const CIRCLE_COUNT = 40;
+ 
+    class Circle {
+      constructor() {
+        this.reset(true);
+      }
+ 
+      reset(initial = false) {
+        this.x = initial ? Math.random() * width : mouse.x;
+        this.y = initial ? Math.random() * height : mouse.y;
+        this.radius = 20 + Math.random() * 40;
+        this.baseRadius = this.radius;
+        this.alpha = 0.08 + Math.random() * 0.12;
+        this.speedX = (Math.random() - 0.5) * 0.3;
+        this.speedY = (Math.random() - 0.5) * 0.3;
+        this.noise = Math.random() * 1000;
+      }
+ 
+      update() {
+        this.x += this.speedX;
+        this.y += this.speedY;
+ 
+        // delikatne „oddychanie”
+        this.noise += 0.005;
+        this.radius = this.baseRadius + Math.sin(this.noise) * 4;
+ 
+        // reagowanie na mysz
+        const dx = this.x - mouse.x;
+        const dy = this.y - mouse.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const maxDist = 220;
+        if (dist < maxDist) {
+          const force = (maxDist - dist) / maxDist;
+          this.x += (dx / dist || 0) * force * 1.2;
+          this.y += (dy / dist || 0) * force * 1.2;
+        }
+ 
+        // zawijanie po krawędziach
+        if (this.x < -100 || this.x > width + 100 || this.y < -100 || this.y > height + 100) {
+          this.reset(true);
+        }
+      }
+ 
+      draw() {
+        const gradient = ctx.createRadialGradient(
+          this.x, this.y, this.radius * 0.1,
+          this.x, this.y, this.radius
+        );
+        gradient.addColorStop(0, `rgba(255, 255, 255, ${this.alpha + 0.05})`);
+        gradient.addColorStop(1, `rgba(210, 190, 160, 0)`);
+ 
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+ 
+    function init() {
+      circles.length = 0;
+      for (let i = 0; i < CIRCLE_COUNT; i++) {
+        circles.push(new Circle());
+      }
+    }
+ 
+    function animate() {
+      ctx.clearRect(0, 0, width, height);
+      for (const c of circles) {
+        c.update();
+        c.draw();
+      }
+      requestAnimationFrame(animate);
+    }
+ 
+    window.addEventListener('resize', () => {
+      width = window.innerWidth;
+      height = window.innerHeight;
+      canvas.width = width;
+      canvas.height = height;
+      init();
+    });
+ 
+    window.addEventListener('mousemove', (e) => {
+      mouse.x = e.clientX;
+      mouse.y = e.clientY;
+    });
+ 
+    window.addEventListener('touchmove', (e) => {
+      const t = e.touches[0];
+      mouse.x = t.clientX;
+      mouse.y = t.clientY;
+    }, { passive: true });
+ 
+    init();
+    animate();
+  </script>
+</body>
+</html>
+ 
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8" />
+<title>Liquid Beige Background</title>
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    height: 100%;
+    background: #e8dfd3;
+    font-family: system-ui, sans-serif;
+  }
+ 
+  #canvas {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    display: block;
+  }
+ 
+  .content {
+    position: relative;
+    z-index: 10;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+ 
+  .box {
+    background: rgba(255, 248, 236, 0.7);
+    padding: 2.5rem 3rem;
+    border-radius: 20px;
+    backdrop-filter: blur(12px);
+    box-shadow: 0 20px 50px rgba(0,0,0,0.15);
+    max-width: 480px;
+    text-align: center;
+  }
+ 
+  .box h1 {
+    margin-bottom: 0.5rem;
+    color: #5a4a3a;
+  }
+ 
+  .box p {
+    color: #6d5c4b;
+    opacity: 0.85;
+  }
+</style>
+</head>
+<body>
+ 
+<canvas id="canvas"></canvas>
+ 
+<div class="content">
+  <div class="box">
+    <h1>Profesjonalne tło „Liquid Wave”</h1>
+    <p>Interaktywna, płynna fala w odcieniach beżu. Rusz myszką.</p>
+  </div>
+</div>
+ 
+<script>
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+ 
+let w, h, t = 0;
+let mouse = { x: 0, y: 0 };
+ 
+function resize() {
+  w = canvas.width = window.innerWidth;
+  h = canvas.height = window.innerHeight;
+}
+resize();
+ 
+window.addEventListener("resize", resize);
+window.addEventListener("mousemove", e => {
+  mouse.x = e.clientX / w;
+  mouse.y = e.clientY / h;
+});
+ 
+function wave(x, y, time) {
+  return (
+    Math.sin(x * 2 + time * 0.8) * 0.15 +
+    Math.cos(y * 3 + time * 1.2) * 0.15 +
+    Math.sin((x + y) * 4 + time * 0.6) * 0.1
+  );
+}
+ 
+function animate() {
+  t += 0.01;
+  const img = ctx.createImageData(w, h);
+  const data = img.data;
+ 
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const nx = x / w;
+      const ny = y / h;
+ 
+      const distortion =
+        wave(nx + mouse.x * 0.2, ny + mouse.y * 0.2, t) * 0.5;
+ 
+      const r = 235 + distortion * 40;
+      const g = 225 + distortion * 30;
+      const b = 210 + distortion * 20;
+ 
+      const index = (y * w + x) * 4;
+      data[index] = r;
+      data[index + 1] = g;
+      data[index + 2] = b;
+      data[index + 3] = 255;
+    }
+  }
+ 
+  ctx.putImageData(img, 0, 0);
+  requestAnimationFrame(animate);
+}
+ 
+animate();
+</script>
+ 
+</body>
+</html>
+ 
+ 
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<title>Animowany tekst</title>
+ 
+<style>
+    body {
+        margin: 0;
+        height: 100vh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background: white;
+        font-family: Arial, sans-serif;
+    }
+ 
+    .container {
+        position: relative;
+        font-size: 48px;
+        font-weight: 600;
+        color: black;
+    }
+ 
+    #text span {
+        opacity: 0;
+        display: inline-block;
+        transform: translateY(10px);
+        transition: opacity 0.4s ease, transform 0.4s ease;
+    }
+ 
+    #dot {
+        position: absolute;
+        top: -15px;
+        left: 0;
+        width: 10px;
+        height: 10px;
+        background: black;
+        border-radius: 50%;
+        opacity: 0;
+        transition: left 0.4s ease, opacity 0.2s;
+    }
+</style>
+</head>
+ 
+<body>
+ 
+<div class="container">
+    <div id="text"></div>
+    <div id="dot"></div>
+</div>
+ 
+<script>
+    const text = "Stefan Żeromski";
+    const textContainer = document.getElementById("text");
+    const dot = document.getElementById("dot");
+ 
+    // Rozbijamy tekst na litery
+    text.split("").forEach(letter => {
+        const span = document.createElement("span");
+        span.textContent = letter;
+        textContainer.appendChild(span);
+    });
+ 
+    const letters = document.querySelectorAll("#text span");
+    let index = 0;
+ 
+    function animateText() {
+        if (index < letters.length) {
+            const letter = letters[index];
+            const rect = letter.getBoundingClientRect();
+            const containerRect = textContainer.getBoundingClientRect();
+ 
+            // pokazujemy literę
+            letter.style.opacity = 1;
+            letter.style.transform = "translateY(0)";
+ 
+            // przesuwamy kropkę nad literę
+            dot.style.opacity = 1;
+            dot.style.left =
+                (rect.left - containerRect.left + rect.width / 2) + "px";
+ 
+            index++;
+            setTimeout(animateText, 120);
+        } else {
+            dot.style.opacity = 0;
+        }
+    }
+ 
+    animateText();
+</script>
+ 
+</body>
+</html>
+ 
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<title>Animowany tekst</title>
+ 
+<style>
+    body {
+        margin: 0;
+        height: 100vh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background: white;
+        font-family: Arial, sans-serif;
+    }
+ 
+    .container {
+        position: relative;
+        font-size: 48px;
+        font-weight: 600;
+        color: black;
+    }
+ 
+    #text span {
+        opacity: 0;
+        display: inline-block;
+        transform: translateY(10px);
+        transition: opacity 0.4s ease, transform 0.4s ease;
+    }
+ 
+    #dot {
+        position: absolute;
+        top: -15px;
+        left: 0;
+        width: 10px;
+        height: 10px;
+        background: black;
+        border-radius: 50%;
+        opacity: 0;
+        transition: left 0.4s ease, opacity 0.2s;
+    }
+</style>
+</head>
+ 
+<body>
+ 
+<div class="container">
+    <div id="text"></div>
+    <div id="dot"></div>
+</div>
+ 
+<script>
+    const text = "Stefan Żeromski";
+    const textContainer = document.getElementById("text");
+    const dot = document.getElementById("dot");
+ 
+    // Rozbijamy tekst na litery
+    text.split("").forEach(letter => {
+        const span = document.createElement("span");
+        span.textContent = letter;
+        textContainer.appendChild(span);
+    });
+ 
+    const letters = document.querySelectorAll("#text span");
+    let index = 0;
+ 
+    function animateText() {
+        if (index < letters.length) {
+            const letter = letters[index];
+            const rect = letter.getBoundingClientRect();
+            const containerRect = textContainer.getBoundingClientRect();
+ 
+            // pokazujemy literę
+            letter.style.opacity = 1;
+            letter.style.transform = "translateY(0)";
+ 
+            // przesuwamy kropkę nad literę
+            dot.style.opacity = 1;
+            dot.style.left =
+                (rect.left - containerRect.left + rect.width / 2) + "px";
+ 
+            index++;
+            setTimeout(animateText, 120);
+        } else {
+            dot.style.opacity = 0;
+        }
+    }
+ 
+    animateText();
+</script>
+ 
+</body>
+</html>
+ 
+ 
+Jasne 🙂 Poniżej masz prostą, krótką i „na logikę” notatkę, z której zrozumiesz całość materiału i spokojnie ogarniesz sprawdzian. Bez trudnych słów, ale wszystko co ważne jest.
+ 
+ 
+---
+ 
+📌 ŚWIATŁO I KOLOR – NOTATKA NA SPRAWDZIAN
+ 
+1. Czym jest światło?
+ 
+Światło to promieniowanie elektromagnetyczne, które widzi ludzkie oko
+➡ zakres: 380–780 nm
+ 
+Dwie teorie:
+ 
+Teoria falowa – światło to fala
+ 
+Teoria kwantowa – światło to cząstki zwane fotonami
+ 
+ 
+👉 Światło białe = mieszanka wszystkich barw widma
+ 
+ 
+---
+ 
+2. Jak widzimy kolory?
+ 
+W oku są fotoreceptory:
+ 
+pręciki – widzenie w słabym świetle (bez kolorów)
+ 
+czopki – widzenie barw
+ 
+ 
+Są 3 rodzaje czopków, wrażliwe na:
+ 
+🔵 niebieski
+ 
+🟢 zielony
+ 
+🔴 czerwony
+ 
+ 
+Z ich mieszania powstają wszystkie kolory
+ 
+ 
+---
+ 
+3. Barwa a kolor (ważne!)
+ 
+🔹 Barwa
+ 
+wrażenie w mózgu
+ 
+zależy od światła wpadającego do oka
+ 
+termin psychologiczny
+ 
+ 
+🔹 Kolor
+ 
+cecha przedmiotu
+ 
+zależy od pigmentów (pochłaniają i odbijają światło)
+ 
+termin fizyczny
+ 
+ 
+👉 Barwa = to, co czujesz
+👉 Kolor = to, co ma przedmiot
+ 
+ 
+---
+ 
+4. Atrybuty koloru
+ 
+Każdy kolor opisują 3 cechy:
+ 
+1. Barwa (Hue) – jaki kolor (np. czerwony)
+ 
+ 
+2. Nasycenie (Saturation) – intensywność (od szarego do czystego)
+ 
+ 
+3. Jasność / jaskrawość (Brightness / Luminacja) – jak jasny
+ 
+ 
+ 
+ 
+---
+ 
+5. Temperatura barwowa (K)
+ 
+Określa czy światło jest ciepłe czy zimne:
+ 
+świeca – 1800 K (ciepłe)
+ 
+żarówka – 2700 K
+ 
+słońce – 5500 K
+ 
+ 
+Monitory:
+ 
+6500 K – zalecane (cieplejsze)
+ 
+9300 K – chłodne
+ 
+ 
+ 
+---
+ 
+6. Modele kolorów – po co są?
+ 
+To sposoby zapisu koloru liczbami w komputerze.
+ 
+Najważniejsze modele:
+ 
+ 
+---
+ 
+7. RGB – MONITORY 📺
+ 
+Red, Green, Blue
+ 
+model addytywny (dodajemy światło)
+ 
+zakres: 0–255
+ 
+ 
+Przykłady:
+ 
+(0,0,0) → czarny
+ 
+(255,255,255) → biały
+ 
+(255,0,0) → czerwony
+ 
+ 
+👉 używany w monitorach, aparatach, kamerach
+👉 3 kanały, 24 bity ≈ 16,8 mln kolorów
+ 
+ 
+---
+ 
+8. CMY / CMYK – DRUK 🖨
+ 
+CMY:
+ 
+Cyan
+ 
+Magenta
+ 
+Yellow
+ 
+ 
+CMYK:
+ 
+CMY + K (Black) – czarny poprawia jakość druku
+ 
+ 
+👉 model subtraktywny (odejmujemy światło)
+👉 używany w drukarkach
+ 
+ 
+---
+ 
+9. HSB / HSV – dla człowieka 👁
+ 
+Łatwe do wybierania koloru w programach graficznych
+ 
+H (Hue) – barwa (0–360°)
+ 
+S (Saturation) – nasycenie
+ 
+B / V (Brightness / Value) – jasność
+ 
+ 
+👉 bazują na ludzkim postrzeganiu kolorów
+ 
+ 
+---
+ 
+10. CIE Lab – NAJWAŻNIEJSZY MODEL
+ 
+niezależny od urządzeń
+ 
+wzorcowy model koloru
+ 
+ 
+Kanały:
+ 
+L – jasność (0–100)
+ 
+a – zielony ↔ czerwony
+ 
+b – niebieski ↔ żółty
+ 
+ 
+👉 używany w CMS
+👉 pokazuje jak kolor wygląda, a nie z czego jest zrobiony
+ 
+ 
+---
+ 
+11. CIE XYZ
+ 
+model matematyczny
+ 
+opisuje możliwości odwzorowania kolorów
+ 
+używany w pomiarach (kolorymetry, spektrometry)
+ 
+ 
+ 
+---
+ 
+12. Gamut
+ 
+Gamut = wszystkie kolory możliwe w danej przestrzeni
+ 
+Np.:
+ 
+sRGB – mniejszy
+ 
+Adobe RGB – większy
+ 
+CMYK – jeszcze inny
+ 
+ 
+👉 kolor może nie mieścić się w innym gamucie
+ 
+ 
+---
+ 
+13. CMS – Color Management System
+ 
+System, który:
+ 
+pilnuje zgodności kolorów
+ 
+tłumaczy kolory między:
+ 
+aparatem
+ 
+monitorem
+ 
+drukarką
+ 
+ 
+ 
+👉 żeby kolor wyglądał jak najbardziej podobnie wszędzie
+ 
+ 
+---
+ 
+🧠 JAK TO ZAPAMIĘTAĆ NA SPRAWDZIAN:
+ 
+RGB = ekran
+ 
+CMYK = druk
+ 
+Barwa = wrażenie
+ 
+Kolor = cecha przedmiotu
+ 
+Lab = wzorcowy
+ 
+Gamut = zakres kolorów
+ 
+ 
+ 
+---
+ 
+Jeśli chcesz: ✅ ściągę A4
+✅ pytania jak na sprawdzian
+✅ test + odpowiedzi
+ 
+— napisz, a zrobię 💪
+ 
+Super, to teraz masz prostą notatkę z grafiki komputerowej (rastrowej) – krótko, jasno i „na sprawdzian”, bez lania wody, ale ze wszystkim co trzeba umieć 👌
+ 
+ 
+---
+ 
+🖥️ GRAFIKA KOMPUTEROWA – PROSTA NOTATKA
+ 
+1. Czym jest grafika komputerowa?
+ 
+Grafika komputerowa to dział informatyki, który zajmuje się:
+ 
+tworzeniem obrazów przy pomocy komputera
+ 
+wizualizacją danych rzeczywistych
+ 
+ 
+Gdzie się ją stosuje?
+ 
+medycyna (np. RTG, tomografia)
+ 
+technika i projektowanie (CAD)
+ 
+publikacje (DTP)
+ 
+film, gry, reklama, Internet, sztuka
+ 
+ 
+ 
+---
+ 
+2. Podział grafiki komputerowej
+ 
+Ze względu na sposób zapisu:
+ 
+grafika rastrowa
+ 
+grafika wektorowa
+ 
+ 
+Ze względu na wymiary:
+ 
+2D – płaska
+ 
+3D – przestrzenna
+ 
+ 
+ 
+---
+ 
+3. Grafika rastrowa – co to jest?
+ 
+Grafika rastrowa to obraz złożony z pikseli (małych punktów):
+ 
+piksele są tej samej wielkości
+ 
+każdy piksel ma jeden kolor
+ 
+zwykle mają kształt kwadratu
+ 
+ 
+👉 Oko nie widzi pojedynczych pikseli, tylko ich grupy
+ 
+ 
+---
+ 
+4. Zastosowania grafiki rastrowej
+ 
+fotografia cyfrowa
+ 
+skanowanie obrazów
+ 
+obróbka i retusz zdjęć
+ 
+grafika do Internetu
+ 
+zrzuty ekranu
+ 
+efekty specjalne w filmie
+ 
+animacje GIF
+ 
+ilustracje
+ 
+ 
+ 
+---
+ 
+5. Właściwości obrazu rastrowego
+ 
+Każdy obraz rastrowy ma:
+ 
+rozmiar (szerokość i wysokość)
+ 
+rozdzielczość
+ 
+głębię bitową
+ 
+tryb koloru (np. RGB)
+ 
+format pliku (JPG, PNG itd.)
+ 
+ 
+ 
+---
+ 
+6. Rozdzielczość
+ 
+📌 ppi (Pixels Per Inch)
+ 
+liczba pikseli na cal
+ 
+im więcej ppi → lepsza jakość, większy plik
+ 
+ 
+👉 Internet / ekran: 72 ppi
+👉 Druk: 150–300 ppi
+ 
+📌 dpi (Dots Per Inch)
+ 
+dotyczy drukarek
+ 
+liczba punktów atramentu na cal
+ 
+im więcej dpi → lepszy wydruk
+ 
+ 
+ 
+---
+ 
+7. Głębia bitowa (bpp)
+ 
+Głębia bitowa mówi: 👉 ile kolorów może mieć jeden piksel
+ 
+Im większa:
+ 
+lepsza jakość
+ 
+większy rozmiar pliku
+ 
+ 
+Najważniejsze głębie:
+ 
+1 bit – czarny i biały (obraz kreskowy)
+ 
+8 bitów – 256 odcieni (szarość, kolor indeksowany)
+ 
+16 bitów – 65 536 kolorów
+ 
+24 bity (RGB) – ok. 16,7 mln kolorów
+ 
+32 bity (CMYK) – druk
+ 
+48 bitów – profesjonalne skanowanie, RAW
+ 
+ 
+ 
+---
+ 
+8. Tryby kolorów w rastrze
+ 
+RGB (24 bity) – monitory, Internet
+ 
+CMYK (32 bity) – druk
+ 
+skala szarości (8 bitów)
+ 
+kolor indeksowany (8 bitów)
+ 
+ 
+ 
+---
+ 
+9. Formaty plików rastrowych (MUSISZ ZNAĆ)
+ 
+🟦 BMP
+ 
+brak kompresji
+ 
+bardzo dobra jakość
+ 
+duże pliki
+ 
+brak przezroczystości i animacji
+ 
+ 
+🟩 TIFF
+ 
+kompresja bezstratna
+ 
+najwyższa jakość
+ 
+używany w druku i DTP
+ 
+bardzo duże pliki
+ 
+ 
+🟥 JPG
+ 
+kompresja stratna
+ 
+małe pliki
+ 
+idealny do zdjęć i Internetu
+ 
+im większa kompresja → gorsza jakość
+ 
+ 
+🟨 GIF
+ 
+256 kolorów
+ 
+kompresja bezstratna
+ 
+obsługuje animacje i przezroczystość
+ 
+dobre do logo, ikon, napisów
+ 
+ 
+🟪 PNG
+ 
+kompresja bezstratna
+ 
+wysoka jakość
+ 
+obsługuje przezroczystość
+ 
+następca GIF-a
+ 
+ 
+ 
+---
+ 
+10. Kompresja obrazów
+ 
+Bezstratna:
+ 
+nie traci jakości
+ 
+RLE, LZW
+ 
+PNG, TIFF, GIF
+ 
+ 
+Stratna:
+ 
+traci jakość
+ 
+bardzo zmniejsza plik
+ 
+JPG, JPG 2000
+ 
+ 
+ 
+---
+ 
+11. Zalety i wady grafiki rastrowej
+ 
+❌ Wady:
+ 
+duży rozmiar plików
+ 
+utrata jakości przy skalowaniu (pikselizacja)
+ 
+ 
+✅ Zalety:
+ 
+bardzo dobre przejścia tonalne
+ 
+realistyczne obrazy
+ 
+idealna do fotografii
+ 
+ 
+ 
+---
+ 
+12. Programy do grafiki rastrowej
+ 
+Komercyjne:
+ 
+Adobe Photoshop
+ 
+Lightroom
+ 
+Corel Photo-Paint
+ 
+ 
+Darmowe:
+ 
+GIMP
+ 
+Paint.NET
+ 
+IrfanView
+ 
+Affinity Photo
+ 
+ 
+ 
+---
+ 
+13. Co można robić z grafiką rastrową?
+ 
+zmiana rozmiaru i rozdzielczości
+ 
+kadrowanie
+ 
+korekta kolorów i jasności
+ 
+filtry
+ 
+retusz
+ 
+fotomontaż
+ 
+animacje
+ 
+ 
+ 
+---
+ 
+🧠 JAK ZAPAMIĘTAĆ NA SPRAWDZIAN:
+ 
+Raster = piksele
+ 
+RGB = ekran
+ 
+CMYK = druk
+ 
+JPG = zdjęcia
+ 
+PNG = Internet + przezroczystość
+ 
+GIF = animacja
+ 
+TIFF = druk, jakość
+ 
+ 
+ 
+---
+ 
+Jeśli chcesz: ✅ test jak na sprawdzian
+✅ pytania + odpowiedzi
+✅ jedną stronę A4 – ściągę
+ 
+napisz 👍
+ 
+Jasne 😄 Zrobimy MEGA-SKRÓT RATUNKOWY
+👉 najpierw: NAJWAŻNIEJSZE NA 5 MINUT
+👉 potem: WAŻNE, ALE NA LUZIE + żarty, żeby weszło do głowy
+ 
+ 
+---
+ 
+🚨 MEGA SKRÓT – NAJWAŻNIEJSZE NA SPRAWDZIAN 🚨
+ 
+1. Światło i kolor
+ 
+Światło = fala + cząstki (fotony)
+ 
+Zakres widzialny: 380–780 nm
+ 
+Białe światło = wszystkie kolory razem
+ 
+ 
+Oko:
+ 
+pręciki – widzą jasno/ciemno
+ 
+czopki (R G B) – widzą kolory
+ 
+ 
+ 
+---
+ 
+2. Barwa vs Kolor (BARDZO WAŻNE)
+ 
+Barwa → wrażenie w mózgu (psychologia)
+ 
+Kolor → cecha przedmiotu (fizyka)
+ 
+ 
+👉 Barwa = „jak widzisz”
+👉 Kolor = „co ma przedmiot”
+ 
+ 
+---
+ 
+3. Atrybuty koloru (3 rzeczy!)
+ 
+Barwa (Hue) – jaki kolor
+ 
+Nasycenie – intensywność
+ 
+Jasność – jak jasny
+ 
+ 
+ 
+---
+ 
+4. Modele kolorów (MUSISZ ZNAĆ)
+ 
+RGB → monitor, telefon 📱
+ 
+CMYK → drukarka 🖨
+ 
+HSB / HSV → dla ludzi
+ 
+Lab → wzorcowy, niezależny od urządzeń
+ 
+ 
+ 
+---
+ 
+5. RGB
+ 
+R G B (0–255)
+ 
+(0,0,0) czarny
+ 
+(255,255,255) biały
+ 
+addytywny = dodajemy światło
+ 
+ 
+ 
+---
+ 
+6. CMYK
+ 
+Cyan, Magenta, Yellow, Black
+ 
+subtraktywny = farba zabiera światło
+ 
+używany w druku
+ 
+ 
+ 
+---
+ 
+7. Gamut
+ 
+Gamut = zakres kolorów
+ 
+Nie każdy kolor da się wszędzie wyświetlić
+ 
+ 
+ 
+---
+ 
+8. CMS
+ 
+pilnuje, żeby kolory wyglądały podobnie
+ 
+monitor ↔ drukarka ↔ aparat
+ 
+ 
+ 
+---
+ 
+9. Grafika komputerowa
+ 
+grafika = obrazy robione komputerem
+ 
+używana: gry, film, reklama, medycyna
+ 
+ 
+ 
+---
+ 
+10. Grafika rastrowa
+ 
+obraz z pikseli
+ 
+skalujesz → piksele widać
+ 
+ 
+ 
+---
+ 
+11. Rozdzielczość
+ 
+ppi – ekran (72 ppi)
+ 
+dpi – druk (150–300)
+ 
+ 
+ 
+---
+ 
+12. Głębia bitowa
+ 
+więcej bitów = więcej kolorów
+ 
+24 bity RGB = ~16 mln kolorów
+ 
+ 
+ 
+---
+ 
+13. Formaty (MUST KNOW)
+ 
+JPG – zdjęcia, Internet (stratny)
+ 
+PNG – Internet + przezroczystość
+ 
+GIF – animacje
+ 
+TIFF – druk, jakość
+ 
+BMP – duży, bez kompresji
+ 
+ 
+ 
+---
+ 
+😄 TERAZ TO SAMO, ALE NA LUZIE (ŻEBY ZROZUMIEĆ)
+ 
+🎨 Światło
+→ fala + foton
+→ biały = wszystko naraz (jak pizza z całym menu)
+ 
+👀 Oko
+→ ma 3 czopki: R G B
+→ jak w monitorze (człowiek = bio-monitor)
+ 
+🧠 Barwa vs Kolor
+ 
+barwa = „wydaje mi się że czerwone”
+ 
+kolor = „to jest czerwone” (umysł vs przedmiot)
+ 
+ 
+📺 RGB
+ 
+świeci
+ 
+im więcej, tym jaśniej
+ 
+monitor = disco światło 🎉
+ 
+ 
+🖨 CMYK
+ 
+farba
+ 
+im więcej, tym ciemniej
+ 
+drukarka = „zabieram światło” 😈
+ 
+ 
+🧱 Raster
+ 
+obraz z klocków LEGO
+ 
+powiększysz → widać klocki
+ 
+ 
+📐 Rozdzielczość
+ 
+mało pikseli = Minecraft
+ 
+dużo pikseli = Netflix HD
+ 
+ 
+🗂 Formaty
+ 
+JPG = selfie
+ 
+PNG = ikonka
+ 
+GIF = śmieszny kot
+ 
+TIFF = drukarnia PRO
+ 
+BMP = ciężki jak kamień
+ 
+ 
+🎯 Zapamiętaj jedno zdanie:
+ 
+> RGB świeci, CMYK się drukuje, raster to piksele, JPG to zdjęcia
+ 
+ 
+ 
+ 
+---
+ 
+Jeśli chcesz: ✅ test w formie ABC
+✅ ściągę na pół kartki
+✅ pytania, które NA PEWNO będą
+ 
+napisz ❤️
+ 
+Generator Testów i Sprawdzianów Nowa Era - Narzędzie dla Nauczycieli - Studocu
+ 
+✅ WARSTWA TRANSPORTOWA – PROSTA NOTATKA (INF.02)
+🔹 Zadania warstwy transportowej
+nawiązywanie i zamykanie połączeń między hostami
+obsługa wielu połączeń jednocześnie
+podział danych na mniejsze części (segmentacja)
+składanie danych u odbiorcy
+identyfikacja aplikacji za pomocą numerów portów
+kontrola przepływu danych
+retransmisja utraconych danych (w TCP)
+🔹 Segmentacja i multipleksing
+dane dzielone są na mniejsze fragmenty (segmenty / datagramy)
+umożliwia to równoczesne działanie wielu aplikacji
+naprzemienne przesyłanie segmentów różnych aplikacji = multipleksing
+🔹 Numery portów
+identyfikują konkretną aplikację
+dodawane w warstwie transportowej podczas enkapsulacji
+przydzielane przez IANA
+Podział portów:
+0–1023 → dobrze znane (serwery)
+1024–49151 → zarejestrowane
+49152–65535 → dynamiczne (klienckie)
+🔹 Najważniejsze porty na egzamin
+HTTP – 80 – TCP
+HTTPS – 443 – TCP
+FTP – 21 – TCP
+SSH – 22 – TCP
+TELNET – 23 – TCP
+SMTP – 25 – TCP
+POP3 – 110 – TCP
+IMAP – 143 – TCP
+DNS – 53 – TCP/UDP
+DHCP – 67, 68 – UDP
+SNMP – 161 – UDP
+MySQL – 3306
+🔹 Gniazdo (socket)
+połączenie: adres IP + numer portu
+jednoznacznie identyfikuje proces w sieci
+🔵 TCP (Transmission Control Protocol)
+Cechy:
+połączeniowy
+niezawodny
+kontrola przepływu
+retransmisja danych
+większy nagłówek (20 bajtów)
+🔹 Nagłówek TCP – najważniejsze pola
+port źródłowy
+port docelowy
+numer sekwencyjny
+numer potwierdzenia (ACK)
+okno
+suma kontrolna
+flagi
+🔹 Flagi TCP
+SYN – rozpoczęcie połączenia
+ACK – potwierdzenie
+FIN – zakończenie
+RST – reset
+PSH – wymuszenie przesłania
+URG – dane pilne
+🔹 Three-way handshake (uzgadnianie trójetapowe)
+SYN
+SYN + ACK
+ACK
+🔹 Zamykanie połączenia
+FIN
+ACK
+FIN
+ACK
+🔹 Okno przesuwne
+określa ile danych można wysłać bez potwierdzenia
+steruje przepływem
+może się dynamicznie zmieniać
+🟢 UDP (User Datagram Protocol)
+Cechy:
+bezpołączeniowy
+brak potwierdzeń
+brak kontroli przepływu
+szybki
+mały nagłówek (8 bajtów)
+🔹 Nagłówek UDP
+port źródłowy
+port docelowy
+długość
+suma kontrolna
+🔹 Aplikacje UDP
+DNS
+DHCP
+VoIP
+streaming
+gry online
+🔹 TCP vs UDP (różnice)
+TCP
+wolniejszy
+niezawodny
+potwierdzenia
+używany do WWW, poczty, FTP
+UDP
+szybszy
+brak gwarancji dostarczenia
+używany do transmisji na żywo i gier
+🔹 NETSTAT
+polecenie w Windows do sprawdzania aktywnych połączeń
+pokazuje:
+protokół
+IP i port lokalny
+IP i port zdalny
+stan połączenia
+netstat -f → pokazuje nazwy domen
+netstat /help → pomoc
+🔁 POWTÓRZENIE NA EGZAMIN INF.02
+Musisz umieć:
+zadania warstwy transportowej
+różnice TCP i UDP
+three-way handshake (SYN → SYN-ACK → ACK)
+zamykanie sesji (FIN, ACK)
+co to jest numer sekwencyjny i ACK
+co to jest okno przesuwne
+co to jest socket
+podział portów (0–1023 itd.)
+najważniejsze numery portów (80, 443, 53, 21, 22, 25, 110…)
+które usługi działają na TCP, a które na UDP
+do czego służy netstat
+Jeśli chcesz, mogę zrobić jeszcze krótszą wersję „na ściągę” na jedną stronę A4 albo test 20 pytań jak na egzamin INF.02.
+ 
+League of Legends – Strona
+League of Legends – Strona
+ 
+Obraz społeczeństwa polskiego w Potopie
+ 
+MAGNATERIA
+ 
+Znaszże ty, Michale, dobrze księcia wojewodę wileńskiego? - pytal Jan.
+ 
+Jak go nie mam znać, kiedym całą wojnę terażniejszą pod jego komendą odbywał.
+ 
+ 
+Co wiesz o jego zamysłach? Zacny to pan?
+ 
+-Wojownik jest doskonały, kto wie, czy po śmierci księcia Jeremiego w Rzeczypo spolitej nie największy. [...] Tak myślę, że szczerze on się teraz weźmie za Szwedów i pewno ich tu nie będziem czekać, ale do Inflant ruszymy. [...]
+ 
+Wołodyjowski począł go wypytywać o wszystko, co się pod Ujściem zdarzyło, i za cziprynę się targal, sluchając opowiadania, wreszcie, gdy pan Stanisław skończył, rzekd -Masz waszmość słuszność! Nasz Radziwill do takich rzeczy niezdolny. Pyszny on
+ 
+jak diabel i zdaje mu się, że w całym świecie większego rodu od radziwiłłowskiego nie ma, prawda! Oporu on nie znosi, prawda [...]. Na króla jegomości także krzyw, że mu buławy wielkiej litewskiej dość prędko nie dal... Wszystko to prawda, jak i to, że woli w bezecnych błędach kalwińskich żyć niż do prawdziwej wiary się nawrócić, że katoli ków, gdzie może, ciśnie, že zbory heretykom stawia... Ale za to przysięgnę, że wolałby ostatnią kroplę swojej pysznej krwi wytoczyć niż taką kapitulację, jak pod Ujściem, pod pisać... Będziem mieli wojny w bród, bo nie skryba, ale wojownik będzie nam hermanit. Tom 1, rondrial XII
+ 
+Mości panowie!... Wielu spomiędzy was... zdziwi... albo zgoła przestraszy ten toast... ale... kto mi ufa i wierzy... kto prawdziwie chce dobra ojczyzny... kto wiernym mojego domu przyjacielem... ten go wzniesie ochotnic... i powtórzy za mną:
+ 
+ 
+Vivat Carolus Gustavus rex!... od dziś dnia laskawie nam panujący!Henryk Sienkiewicz Potop
+ 
+ność mężczyz robila pod uwage w
+ 
+Fitur powtórzyli waj podosie Lov haupe Shitte oraz killomaitu oficerów roziom akirgo autoramentu
+ 
+Lect w sali zapanowalis pluche milenir. Polkome nice i salachta spoglądali na siebie przerażobyin wzro Liem, jakby pytając się wzajem, czy kaiążę zmyslo nie utracit Kills głosów.orwalo się wreszcie w to roch miejscach stolu
+ 
+Cry my dobrze słyszym? Co to jer Potem znów nastala cisza. [...]
+ 
+Lecz nim burza wybuchla, siwy jak gołąb pulkow nik Stankiewicz zabral głos i począł błagać
+ 
+-Moici książe! Uszom własnym wierzyć nie chce-my! Na rany Chrystusal także to ma pójść wniwecz daielo Wladyslawowe i Zygmunta Augusta? Zali moz nazali godzi się braci odstępować, ojczyzny odstępować nieprzyjacielem unię zawierać? Moki ksiąkę, wapo-mnu na imis, które nosisz, na zasługi, które ojczyźnie oddales, na sławę niepokalana dotąd rodu twego i ze drryj, i podepez ten dokument haniebny! Wiem, że nie wwoim imieniu tylko proszę, ale w imieniu wszyst kich tu obecnych wojskowych i szlachty. Toż i nam prawo służy o losie naszym stanowić, Mości książę! nie czyń tego, czas jeszcze!... Zmiłuj się nad sobą, zmiłuj się nad nami, zmiluj się nad Rzecząpospolitą!
+ 
+Słysząc to, pan Zagloba otrząsnął się ze zdumienia i wybuchnal:
+ 
+Ile mu wyliczono? Co mu jeszcze obiecano? Mości panowie, oto Judasz Iskariota! Bodaješ konał w rozpaczył bodaj ród twój wygall bodaj dia bel duszę z ciebie wywłókł... zdrajcol zdrajcol po trzykroć zdrajco!
+ 
+Wtem Stankiewicz w uniesieniu rozpaczy wyciągnął pułkownikowską buławę zza pasa c snął ją z trzaskiem do nóg księcia. Drugi cisnął Mirski, trzeci Józefowicz, crwarty Hastys, piąty, blady jak trup pan Wołodyjowski, szósty Oskierko - i toczyły się po podłodze balany, a jednocześnie w tej lwiej jaskini, lwu do oczu, coraz więcej ust powtarzało straszliwy wyraz -Zdrajcal... zdrajcal...Wizystka Arena do glowy domneno magniowizzimal, rackib
+ 
+się respem pod snil Genchefi Kmicic, dis mnie!
+ 
+ryknął straczliwym glosem
+ 
+Weri chwili czworo podwo wiodących do sali rozwarlo się naraz z loskotem Lieliechoty wrocely grofne, milcrace, z makietami w reku. Od głównych drzwi
+ 
+Ganchol Sro-krzyknal kαίρις.
+ 
+Po czym zwrócił się do pulkowników:
+ 
+Kto za mną, niech przejdzie na prawą stronę sali! Ja tołnierz, hetmanowi służę!... Bóg niech mnie
+ 
+zirekt Charlamp, przechodząc na prawą stronę.
+ 
+-1 jal-dodal Mieleszko. Nie mój będzie grzech! Protestowałem jako obywatel, jako zołnierz slu-
+ 
+chal murę - dodal trzeci. Niewiarowski, który cho-ciaż poprzednio bulavę rzucił, teraz widocznie uląkl siç Radziwilla.
+ 
+Za nimi przeszło kilku innych i spora wiązka szlach-ty, lecz Mirski, najwyższy godnością, i Stankiewicz, naj-starszy wiekiem, i Hoszczyc, i Wołodyjowski, i Oskierko pozostali na miejscu, a z nimi dwóch Skrzeruskich, pan Zagłoba i ogromna większość tak towarzyszów rozma-
+ 
+itych poważnych i lekkich chorągwi, jak i szlachty. Szkocka piechota otoczyła ich murem.
+ 
+Tom 1, odrial XIII
+ 
+Oczy Kmicica błysnęły przez chwilę, lecz mówił dalej
+ 
+spokojnie:
+ 
+Owóż tak jest: książę wojewoda wileński wszystkie swe postępki dobrem i zbawieniem Rze czypospolitej osłania. Już też ta Rzeczpospolita z ust mu nie schodzi. Raczże mi, wasza książęa mość, szczerze powiedzieć: pozoryli to tylko konieczne czyli naprawdę książę hetman ma tylk dobro Rzeczypospolitej na celu?... [...]
+ 
+Książę przekręcił krzesło, siadl na nim jak na koniu i wsparłszy ręce na poręczy, milezal chwilę, jakby się namyślając, po czym rzekl:
+ 
+-Słuchaj, panie Kmicic! Gdybyśmy, Radziwiłłowie, żyli w Hiszpanii, we Francji albo w Szwe cji, gdzie syn po ojcu następuje i gdzie prawo królewskie z Boga samego wypływa, tedy, pomin szy jakieś wojny domowe, jakieś rodu królewskiego wygaśnięcie, jakieś nadzwyczajne zdarzenia służylibyśmy pewnie królowi i ojczyźnie, kontentując się jeno najwyższymi urzędami, które się z rodu i fortuny przynależą. Ale tu, w tym kraju, gdzie król nie ma za sobą bożego prawa, jena go szlachta kreuje, gdzie wszystko in liberis suffragiis, słusznie czyniliśmy sobie pytanie: dlaczegto Waza, a nic Radziwill ma panować?... Nic to jeszcze Waza. kto nas upewni, że po Wazach nie przyjdzie szlachicic fantazja do głowy posadzić na stolcu królewskim i wielkoksiążęcym choćby pana Harasimowicza albo jakiego pana Mieleszkę, albo jakiego pana Pległasiewicza z Psiel Wólki. Thu! czy ja wiem wreszcie kogo?... A my? Radziwiłłowie i książęta Rzeszy Nie-mieckiej mamyże po staremu przystępować do calowania jego Anilewskiej-pieglasiewiczowskiej ręki?... Tful do wszystkich wearych diablów, kawalerze, czas z tym skończyć! [...]
+ 
+-Jest, panie kawalerze, zwyczaj w tym kraju, iż gdy kto kona, to mu krewni w ostatniej chwili poduszkę spod glowy wyszarpują, ażeby się zaś dłużej nie męczył. Ja i książę wojewoda wileński postanowüzimy t właśnie przysługę oddać Rzeczypospolitej. Ale że sila drapieżników czyha na spadek i wszyst bego zagarnąć nie zdołamy, przeto chcemy, aby choć część, i to nie lada jaka, dla nas przypadła. Jake krewni, mamy do tego prawo. Jeśli zaś nie przemówiłem ci tym porównaniem do głowy inie zdolalem w sedno utrafić, tedy powiem inaczej. Rzeczpospolita to postaw czerwonego kna, za które ciągną Szwedzi [...], Tatarzy, elektor i kto żyw naokoło. A my z księciem we jewodą wileńskim powiedzieliśmy sobie, że z tego sukna musi się i nam tyle zostać w ręku, aby na plaszcz wystarczyło, dlatego nie tylko nie przeszkadzamy ciągnąć, ale i sami ciągniemy. Tom 1, sondrial XXV
+ 
+Zadania korzystając z tego tylko tekst napisz zod myślników obraz społeczeństwa polskiego jako magmateria
+ 
+SZLACHTA
+ 
+Wezelka wątpliwość znilda. Okrzyk Wojnal"-naległ się po całej Wielkopolsce i wizyt Lich ziemiach Reeczypospolitej. Ze wurystkiej bowiem salachry zamieszkującej obszary Ranczypospolitej wielkopolska właśnie najmniej była wojownicza. Tatarry, Turcy i Kozacy nie deptali nigdy tych okolic, które od czasów krryzackich zapomniały niemal, jak wygląda wojna kroju [...]. Teraz więc, gdy burza szwedzka oderwała ich od spokojnych zajęć, zdawalo im się, že na wojnę nie možna się zanadto hronią najeżyć ani харнаті горатrzyć, ani za wielu wzizić pachołków, którzy by ciała i sprzętów pana strzegli,Drieni to byli żołnierze, z którymi rotmistrzowie niełatwo do sprawy przyjść mogli, Stawal klad towarzysz z kopią na driewiętnaście stóp długą i w pancerzu na piersiach, ale w słomianym kap dla chłodu na głowie, inny w czasie musztry na gorąco narzekal, inny ziewał, jadl lub pil, inny pacholo moll, a wszyscy w szeregu nie poczytywali za rzecz zdroźną gawędzić tak głośno, że rozłazów of nike dosdysmeć nie mógł. I trudno było dyscyplinę wprowadzać, bo się o nią bracia urażała mocпо, godności obywatelskiej przeciwną. Oglaszano wprawdzie artykuly", ale ich słuchać nie chciano.
+ 
+Kula żelazna u nóg tego wojska był nieprzeliczony zastęp wozów, koni zapaśnych i pociągowy bydla przeznaczonego na spyżę", a zwłaszcza sług pilnujących namiotów, sprzętów, jagiel, krupib gosów, a wszczynających z lada powodu kłótnie i zamieszanie.
+ 
+Przeciw takiemu to wojsku zbliżał się od strony Szczecina i nadodrzańskich lęgów Arwid We tenberg, stary wódz, któremu mlodość na wojnie trzydziestoletniej zbiegła, prowadząc siedmnalce rysięcy weteranów, w żelazną dyscyplinę ujętych. [...]
+ 
+skie, głowną pozycję, zajął ze swymi ludźmi pan wojewoda poznański. Część rycerstwa zostala w Wieleniu, część w Pile, [...] by stamtąd dawać baczenie na nieprzyjaciela. Rozpoczął się lipiec dnie były ciągle pogodne i gorące. Słońce dopiekało na równinach tak mocno, iż szlachta chronila się po lasach, między drzewami, pod których cieniem niektórzy kazali rozbijać swe namioty. Tam te wyprawiano uczy gwarne i halaśliwe, a jeszcze więcej hałasu czyniła służba, zwłaszcza przy pławieniapojenia koni, których po kilka tysięcy nataz pędzono trzy razy dziennie do No
+ 
+Duch jednak, pomimo iż sam wojewoda poznamki dzialal scary w ten sp byl z początku dobry. [...] Jakoś gdy ubiegł tydzień i drugi, a zaczyna się trzeci dlugs bescrynność poczęła ciężyć pospolitemu ruszeniu. Upały byly coraz większe Silachta nie chcial webdica masztry, tłumacząc się tym, że konie, cięte przez baki, nie chcą stać na miejsca dej okolicy od komarów wytrzymać nie można
+ 
+w Mos Creladi wazczynala coraz większe kłótnie o miejsca cieniste, o które i między na perychodido do szabel. Jaki taki, skręciwszy wieczorem do wody, wyjeżdżal chyłkiem zobora, weil więc Nie braklo iz góry złego przykładu. Pan Skoraszewski dał właśnie znać z Czaplinka, Swede juniedaleko, gdy na radzie wojennej uwolniono do domu pana Zygmunta z Grudnej Grudzie staroscica fredzkiego, o co stryj Andrzej
+ 
+189
+ 
+, pan wojewoda kaliski, wielce nastawal -Jeśli ja mam tu głowę złożyć i gardło dać mówil niechże synowiec po meie pamięć i da odziedziczy, by zasługa moja nie przepadła.
+ 
+Tu począł roztkliwiać się nad młodym wie bem i niewinnością synowca oraz wynosić jego hojność, z jaką sto piechoty bardzo porządnej dlu Rzeczypospolitej na ten termin wystawil. 1 rada wojenna zgodziła się na prośby stryja. Z rana 16 lipca wyjeżdżał pan starościc w kilkanaście dug otwarcie z obozu do domu, w wigilię niemal oblężenia i bitwy. Tłumy szlachty przeprowadza-
+ 
+tv go wśród szyderskich okrzyków aż za obóz, atłumom tym przywodził [blazen] Ostrožka, który krzyczał z daleka za odjeżdżającym:
+ 
+-Mości panie starościcu, daję ci do herbu i nazwiska przydomek: Deest! Tom 1, rondzial
+ 
+Chłopi Między Kurpiami, chociaż prawie nikt z nich nie widział dotąd Szwedów, chodzily najrozmaitze wieści o najściu kraju. Mówiono, že przybył lud zza morza, mowy ludzkiej nierozumiejący, niewier yw Chrystusa Pana, Najświętszą Pannę ani we wszystkich świętych i dziwnie drapietny. Inni prawila nadzwyczajnym lakomstwie tych nieprzyjaciół na bydło, skóry, orzechy, miód i grzyby suszone, 9
+ 
+których jeśli im odmawiano, wówczas podpalali puszczę. Niektórzy twierdzili przeciwnie, že to jes maród wilkolaków, chętnie ludzkim mięsem, a mianowicie mięsem dziewczyn się karmiący
+ 
+Pod wpływem tych groźnych wieści, które w największe głębie puszczańskie zaleciały, jęli się Kur pikowie „poczuwać" i zhukiwać po lasach. Ci, którzy wyrabiali potaż i smolę, i ci, którzy zhietaniemshumielu się tres trudnili, i drwale, i rybitwowie, którzy zastawiali więcierze po zanałych wybrzeżack Rowogi, i wuicnicy, i myśliwi, i perczołowody, i bobrownicy zhierali się teraz po znaceniejszych ossdach, shochając opowiadań, udzielając sobie nowin i radząc, jak by nieprzyjaciela, jeśliby wpuszczy pokazal, wyżenąć.
+ 
+Kamicic, jadąc ze swym orszakiem, nieraz spotykał większe i mniejsze kupy tego ludu przybra nego w konopne koszule i skóry wilcze, lisie lub niedźwiedzie. Nieraz też zastępowano mu na
+ 
+prresmykach i pasach, pytając: Kto ty? Czy tie Szwed?
+ 
+-Niel-odpowiadal pan Andrzej.
+ 
+-Niech ciebie Bóg bronil
+ 
+Pan Andrzej przypatrywał się z ciekawością tym ludziom żyjącym ustawicznie w mrokach les-nych, których twarzy nie opalalo nigdy odkryte słońce, podziwiał ich wzrost, imiałość wejrzeniz, szczerość mowy i wcale niechłopaką fantazję
+ 
+Kiemlicze, którzy ich znali, zapewniali pana Andrzeja, že nie masz nad nich strzelców w całej Rzeczypospolitej. Jakoż zauważył, że wszyscy mieli dobre niemieckie rusznice, które z Prus za skóry wymieniali. Kazal im też swą sprawność w strzelaniu okazywać i zdumiewal się jej wido kiem, a w duszy myślał:
+ 
+Gdyby mi przyszło partię zbierać, tu bym przyszedł ".
+ 
+W Myszyńcu samym znalazł wielkie zgromadzenie. Przeszło stu strzelców trzymało ustawicz-nie straż przy misji, bo obawiano się, że Szwedzi tu najpierwej się pokażą, zwłaszcza że starosta ostrołęcki kazał wyciąć drogę w lasach, aby księża, w misji osiedli, mogli mieć do świata przystęp".
+ 
+Chmielarze, którzy swój towar dostawiali aż do Przasnysza tamtejszym sławnym piwowarom i z tego powodu uchodzili za ludzi bywałych, opowiadali, że w Łomży, w Ostrołęce i Przasnyszu roi się od Szwedów, którzy tak już tam gospodarują jak w domu i podatki wybierają.
+ 
+Kmicic jął namawiać Kurpiów, by nie czekając Szwedów w puszczy, uderzyli na Ostrołękę i wojnę rozpoczęli, a sam ofiarował się ich poprowadzić. Wielką też między nimi znalazł ochotę, ale dwaj księża odwiedli ich od tego szalonego czynu, przedstawiając, aby czekali, aż cały kraj się ruszy, i przedwczesnym wystąpieniem nie ściągali na się okrutnej zemsty nieprzyjaciela. Tom 2, rondzial IX
+ 
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <title>Rozpoznawanie koloru głosem</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      margin-top: 50px;
+      transition: background-color 0.3s ease;
+    }
+    #colorText {
+      font-size: 2rem;
+      margin-top: 20px;
+      font-weight: bold;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <h1>Powiedz kolor</h1>
+  <p>Kliknij przycisk i powiedz np. „czerwony”, „niebieski”, „green”, „red” itd.</p>
+  <button id="startBtn">Nasłuchuj</button>
+  <div id="colorText"></div>
+ 
+  <script>
+    // Sprawdzenie wsparcia API
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+ 
+    if (!SpeechRecognition) {
+      alert("Twoja przeglądarka nie wspiera Web Speech API. Spróbuj w Google Chrome.");
+    } else {
+      const recognition = new SpeechRecognition();
+      recognition.lang = "pl-PL"; // możesz zmienić na "en-US" jeśli chcesz kolory po angielsku
+      recognition.interimResults = false;
+      recognition.maxAlternatives = 1;
+ 
+      const startBtn = document.getElementById("startBtn");
+      const colorText = document.getElementById("colorText");
+ 
+      startBtn.addEventListener("click", () => {
+        // Start nasłuchiwania – przeglądarka sama poprosi o dostęp do mikrofonu
+        recognition.start();
+        startBtn.textContent = "Nasłuchuję...";
+      });
+ 
+      recognition.addEventListener("result", (event) => {
+        const transcript = event.results[0][0].transcript.trim();
+        console.log("Rozpoznano:", transcript);
+ 
+        // Wyświetl rozpoznany tekst
+        colorText.textContent = transcript;
+ 
+        // Spróbuj ustawić tło na ten kolor
+        // Dla polskich nazw możesz zrobić prostą mapę
+        const colorMap = {
+          "czerwony": "red",
+          "zielony": "green",
+          "niebieski": "blue",
+          "żółty": "yellow",
+          "fioletowy": "purple",
+          "różowy": "pink",
+          "biały": "white",
+          "czarny": "black",
+          "pomarańczowy": "orange",
+          "szary": "gray",
+          "brązowy": "brown"
+        };
+ 
+        let color = transcript.toLowerCase();
+ 
+        if (colorMap[color]) {
+          color = colorMap[color];
+        }
+ 
+        // Sprawdź, czy to poprawny kolor CSS
+        const testEl = document.createElement("div");
+        testEl.style.color = color;
+        if (testEl.style.color) {
+          document.body.style.backgroundColor = color;
+        }
+      });
+ 
+      recognition.addEventListener("end", () => {
+        // Zakończenie nasłuchiwania
+        startBtn.textContent = "Nasłuchuj";
+      });
+ 
+      recognition.addEventListener("error", (event) => {
+        console.error("Błąd rozpoznawania:", event.error);
+        startBtn.textContent = "Nasłuchuj";
+      });
+    }
+  </script>
+</body>
+</html>
+ 

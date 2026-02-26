@@ -2,245 +2,127 @@
 <html lang="pl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>LED Voice Control 9x9</title>
-
+<title>Tabletka 9x9 sterowana głosem</title>
 <style>
 body {
-  background:#111;
-  color:white;
-  font-family:Arial;
-  margin:0;
-  transition:background 0.3s;
-}
-
-header {
-  background:#222;
-  padding:1rem;
-  text-align:center;
-  font-size:1.5rem;
+    font-family: Arial, sans-serif;
+    text-align: center;
+    background: #111;
+    color: white;
 }
 
 #grid {
-  display:grid;
-  grid-template-columns:repeat(9,40px);
-  grid-template-rows:repeat(9,40px);
-  gap:4px;
-  justify-content:center;
-  margin-top:20px;
+    display: grid;
+    grid-template-columns: repeat(9, 40px);
+    grid-template-rows: repeat(9, 40px);
+    gap: 4px;
+    justify-content: center;
+    margin-top: 20px;
 }
 
 .cell {
-  width:40px;
-  height:40px;
-  background:black;
-  border-radius:4px;
+    width: 40px;
+    height: 40px;
+    background: #333;
+    border-radius: 6px;
+    border: 1px solid #555;
+    transition: background 0.3s;
 }
 
 button {
-  padding:0.7rem 1.2rem;
-  margin:10px;
-  background:#444;
-  color:white;
-  border:none;
-  border-radius:4px;
-  cursor:pointer;
+    margin-top: 20px;
+    padding: 10px 20px;
+    font-size: 16px;
+    cursor: pointer;
 }
 
-#log {
-  background:#000;
-  padding:10px;
-  margin-top:15px;
-  font-size:0.8rem;
-  max-height:150px;
-  overflow:auto;
-  white-space:pre-wrap;
+#status {
+    margin-top: 10px;
+    font-size: 14px;
+    color: #aaa;
 }
 </style>
 </head>
-
 <body>
 
-<header>🎤 Sterowanie głosem LED 9×9</header>
-
-<div style="text-align:center;">
-  <button id="btnBluetooth">Połącz z ESP32</button>
-  <button id="btnStart">Start nasłuchiwania</button>
-  <button id="btnStop" disabled>Stop</button>
-  <button id="btnSend">Wyślij do LED</button>
-
-  <p id="status">Status: nieaktywny</p>
-  <p id="heard" style="font-size:1.4rem;font-weight:bold;"></p>
-</div>
+<h1>Tabletka 9×9 sterowana głosem</h1>
+<button onclick="startListening()">🎤 Start nasłuchiwania</button>
+<div id="status">Kliknij przycisk i powiedz kolor</div>
 
 <div id="grid"></div>
 
-<div id="log"></div>
-
 <script>
-/* ------------------ USTAWIENIA ------------------ */
-const NUM_LEDS = 81;
-let writeCharacteristic = null;
-let currentColor = null;
-
-/* ------------------ MAPA KOLORÓW ------------------ */
-const colors = {
-  red:[255,0,0],
-  green:[0,255,0],
-  blue:[0,0,255],
-  yellow:[255,255,0],
-  orange:[255,165,0],
-  purple:[128,0,128],
-  pink:[255,20,147],
-  black:[0,0,0]
-};
-
-// klucze BEZ ogonków
-const colorWords = {
-  "czerwony":"red",
-  "zielony":"green",
-  "niebieski":"blue",
-  "zolty":"yellow",
-  "pomaranczowy":"orange",
-  "fioletowy":"purple",
-  "rozowy":"pink",
-  "czarny":"black"
-};
-
-/* ------------------ LOG ------------------ */
-function log(msg){
-  document.getElementById("log").textContent += msg + "\n";
-}
-
-/* ------------------ TWORZENIE SIATKI 9×9 ------------------ */
+// tworzenie siatki 9x9
 const grid = document.getElementById("grid");
-let cells = [];
-
-for(let i=0;i<NUM_LEDS;i++){
-  const div = document.createElement("div");
-  div.className = "cell";
-  grid.appendChild(div);
-  cells.push(div);
+for (let i = 0; i < 81; i++) {
+    const cell = document.createElement("div");
+    cell.className = "cell";
+    grid.appendChild(cell);
 }
 
-/* ------------------ KOLOROWANIE SIATKI ------------------ */
-function fillGrid(color){
-  const rgb = colors[color];
-  if(!rgb) return;
+const cells = document.querySelectorAll(".cell");
 
-  cells.forEach(c=>{
-    c.style.background = `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
-  });
-
-  document.body.style.background = `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
-  currentColor = color;
-
-  log("Ustawiono kolor: " + color);
-}
-
-/* ------------------ BLUETOOTH ------------------ */
-const SERVICE_UUID = "12345678-1234-1234-1234-1234567890ab";
-const CHAR_UUID    = "87654321-4321-4321-4321-0987654321ba";
-
-document.getElementById("btnBluetooth").onclick = async () => {
-  try {
-    const device = await navigator.bluetooth.requestDevice({
-      acceptAllDevices:true,
-      optionalServices:[SERVICE_UUID]
-    });
-
-    const server = await device.gatt.connect();
-    const service = await server.getPrimaryService(SERVICE_UUID);
-    writeCharacteristic = await service.getCharacteristic(CHAR_UUID);
-
-    document.getElementById("status").textContent = "Status: połączono z " + device.name;
-    log("Połączono z ESP32");
-  } catch(e){
-    log("Błąd Bluetooth: " + e.message);
-  }
+// mapa kolorów PL -> CSS
+const colors = {
+    "czerwony": "red",
+    "niebieski": "blue",
+    "zielony": "green",
+    "żółty": "yellow",
+    "zolty": "yellow",
+    "czarny": "black",
+    "biały": "white",
+    "bialy": "white",
+    "fioletowy": "purple",
+    "pomarańczowy": "orange",
+    "pomaranczowy": "orange",
+    "różowy": "pink",
+    "rozowy": "pink"
 };
 
-/* ------------------ WYSYŁANIE DO ESP32 ------------------ */
-document.getElementById("btnSend").onclick = async () => {
-  if(!writeCharacteristic){
-    alert("Najpierw połącz z ESP32!");
-    return;
-  }
-  if(!currentColor){
-    alert("Najpierw powiedz kolor!");
-    return;
-  }
-
-  const rgb = colors[currentColor];
-  let data = new Uint8Array(NUM_LEDS * 3);
-
-  for(let i=0;i<NUM_LEDS;i++){
-    data[i*3]   = rgb[0];
-    data[i*3+1] = rgb[1];
-    data[i*3+2] = rgb[2];
-  }
-
-  await writeCharacteristic.writeValue(data);
-  log("Wysłano kolor do ESP32: " + currentColor);
-};
-
-/* ------------------ ROZPOZNAWANIE GŁOSU ------------------ */
-const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-let recog = null;
-
-function stripDiacritics(str){
-  return str
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")   // usuń ogonki
-    .replace(/[^a-z\s]/g, "");         // usuń znaki typu .,!? itp.
+function paint(color) {
+    cells.forEach(cell => {
+        cell.style.background = color;
+    });
 }
 
-if(SpeechRecognition){
-  recog = new SpeechRecognition();
-  recog.lang = "pl-PL";
-  recog.continuous = true;
-  recog.interimResults = false;
+// rozpoznawanie mowy
+function startListening() {
+    const status = document.getElementById("status");
 
-  recog.onresult = e => {
-    // bierzemy ostatni wynik
-    let text = e.results[e.results.length - 1][0].transcript.toLowerCase();
-    document.getElementById("heard").textContent = text;
-    log("Surowy transcript: " + text);
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
-    let norm = stripDiacritics(text);
-    log("Po normalizacji: " + norm);
-
-    let found = null;
-    Object.keys(colorWords).forEach(word=>{
-      if(norm.includes(word)) found = colorWords[word];
-    });
-
-    if(found){
-      log("Wykryto kolor: " + found);
-      fillGrid(found);
-    }else{
-      log("Nie znaleziono koloru w tekście");
+    if (!SpeechRecognition) {
+        status.textContent = "Twoja przeglądarka nie obsługuje rozpoznawania mowy";
+        return;
     }
-  };
 
-  recog.onerror = e => log("Błąd: " + e.error);
+    const recognition = new SpeechRecognition();
+    recognition.lang = "pl-PL";
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+
+    status.textContent = "Nasłuchiwanie... powiedz kolor";
+
+    recognition.start();
+
+    recognition.onresult = function(event) {
+        const text = event.results[0][0].transcript.toLowerCase().trim();
+        status.textContent = "Usłyszano: " + text;
+
+        for (let word in colors) {
+            if (text.includes(word)) {
+                paint(colors[word]);
+                return;
+            }
+        }
+
+        status.textContent += " (nieznany kolor)";
+    };
+
+    recognition.onerror = function(event) {
+        status.textContent = "Błąd: " + event.error;
+    };
 }
-
-/* ------------------ START / STOP ------------------ */
-document.getElementById("btnStart").onclick = async () => {
-  await navigator.mediaDevices.getUserMedia({audio:true});
-  recog.start();
-  document.getElementById("btnStart").disabled = true;
-  document.getElementById("btnStop").disabled = false;
-  document.getElementById("status").textContent = "Status: nasłuchiwanie...";
-};
-
-document.getElementById("btnStop").onclick = () => {
-  recog.stop();
-  document.getElementById("btnStart").disabled = false;
-  document.getElementById("btnStop").disabled = true;
-  document.getElementById("status").textContent = "Status: zatrzymano";
-};
 </script>
 
 </body>

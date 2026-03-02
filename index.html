@@ -59,10 +59,9 @@ button { padding:10px 15px; margin:5px; cursor:pointer;}
 <div id="grid"></div>
 
 <button id="btnSendGrid">Wyślij do lampy</button>
-<button id="btnVoice">🎤 Start nasłuchiwania</button>
+<button onclick="showText()">Napis ZSE</button>
 
 <p id="sendStatus"></p>
-<p id="voiceStatus"></p>
 
 </section>
 
@@ -76,7 +75,6 @@ button { padding:10px 15px; margin:5px; cursor:pointer;}
 <button onclick="blinkMode()">Miganie</button>
 <button onclick="waveMode()">Fale</button>
 <button onclick="pulseMode()">Pulsowanie</button>
-<button onclick="showText()">ZSE</button>
 </section>
 
 </main>
@@ -122,137 +120,106 @@ const CHARACTERISTIC_UUID='87654321-4321-4321-4321-0987654321ba';
 
 document.getElementById("btnRequestBluetooth").onclick=async()=>{
 try{
-const device=await navigator.bluetooth.requestDevice({
-acceptAllDevices:true,
-optionalServices:[SERVICE_UUID]
-});
+const device=await navigator.bluetooth.requestDevice({acceptAllDevices:true,optionalServices:[SERVICE_UUID]});
 const server=await device.gatt.connect();
 const service=await server.getPrimaryService(SERVICE_UUID);
 writeCharacteristic=await service.getCharacteristic(CHARACTERISTIC_UUID);
 connStatus.textContent="Połączono";
-}catch(e){
-connStatus.textContent="Błąd: "+e;
-}
+}catch(e){connStatus.textContent="Błąd: "+e;}
 };
 
 /* GRID */
 const grid=document.getElementById("grid");
-
-const colors={
-red:"#FF0000",
-green:"#00FF00",
-blue:"#0000FF",
-yellow:"#FFFF00",
-purple:"#800080",
-orange:"#FFA500",
-pink:"#FFC0CB",
-white:"#FFFFFF",
-cyan:"#00FFFF",
-lime:"#32CD32",
-black:"#000000"
-};
-
-let selectedColor="red";
 let cells=[];
-
-document.querySelectorAll(".color-circle").forEach(el=>{
-el.onclick=()=>{
-document.querySelectorAll(".color-circle").forEach(c=>c.classList.remove("selected"));
-el.classList.add("selected");
-selectedColor=el.id;
-};
-});
-
 for(let i=0;i<NUM_LEDS;i++){
 const cell=document.createElement("div");
 cell.className="cell";
-cell.style.backgroundColor=colors.black;
-cell.onclick=()=>{cell.style.backgroundColor=colors[selectedColor];};
 grid.appendChild(cell);
 cells.push(cell);
 }
 
 /* WYSYŁANIE */
-const sendStatus=document.getElementById("sendStatus");
-document.getElementById("btnSendGrid").onclick=sendToLamp;
-
 async function sendToLamp(){
-if(!writeCharacteristic){sendStatus.textContent="Nie połączono";return;}
+if(!writeCharacteristic) return;
 let data=new Uint8Array(NUM_LEDS*3);
 for(let i=0;i<NUM_LEDS;i++){
-let rgb=parseRGB(cells[i].style.backgroundColor);
-data[i*3]=rgb.r;
-data[i*3+1]=rgb.g;
-data[i*3+2]=rgb.b;
+let rgb=getRGB(cells[i].style.backgroundColor);
+data[i*3]=rgb.r; data[i*3+1]=rgb.g; data[i*3+2]=rgb.b;
 }
 await writeCharacteristic.writeValue(data);
-sendStatus.textContent="Wysłano do lampy";
 }
 
-function parseRGB(rgb){
-const m=rgb.match(/\d+/g);
-return{r:parseInt(m[0]),g:parseInt(m[1]),b:parseInt(m[2])};
+function getRGB(color){
+let m=color.match(/\d+/g);
+return m?{r:+m[0],g:+m[1],b:+m[2]}:{r:0,g:0,b:0};
 }
 
-/* GŁOS */
-const voiceBtn=document.getElementById("btnVoice");
-const voiceStatus=document.getElementById("voiceStatus");
+/* ======= PROFESJONALNY NAPIS 9x9 ======= */
 
-const voiceMap={
-"czerwony":"red","zielony":"green","niebieski":"blue",
-"żółty":"yellow","zolty":"yellow",
-"fioletowy":"purple","pomarańczowy":"orange",
-"różowy":"pink","rozowy":"pink",
-"biały":"white","bialy":"white",
-"turkusowy":"cyan","jasnozielony":"lime"
+function showText(){
+
+const text=" ZAPRASZAMY DO ZSE ";
+let offset=0;
+
+const font={
+"Z":["11111","00001","00010","00100","01000","10000","11111"],
+"A":["01110","10001","10001","11111","10001","10001","10001"],
+"P":["11110","10001","10001","11110","10000","10000","10000"],
+"R":["11110","10001","10001","11110","10100","10010","10001"],
+"S":["01111","10000","10000","01110","00001","00001","11110"],
+"M":["10001","11011","10101","10101","10001","10001","10001"],
+"Y":["10001","10001","01010","00100","00100","00100","00100"],
+"D":["11110","10001","10001","10001","10001","10001","11110"],
+"O":["01110","10001","10001","10001","10001","10001","01110"],
+"E":["11111","10000","10000","11110","10000","10000","11111"],
+" ":["00000","00000","00000","00000","00000","00000","00000"]
 };
 
-let recognition; let listening=false;
+setInterval(async()=>{
 
-voiceBtn.onclick=()=>{
-const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
-if(!SpeechRecognition){voiceStatus.textContent="Brak obsługi głosu";return;}
+cells.forEach(c=>c.style.backgroundColor="black");
 
-if(!recognition){
-recognition=new SpeechRecognition();
-recognition.lang="pl-PL";
-recognition.continuous=true;
-recognition.onresult=async(event)=>{
-let text=event.results[event.results.length-1][0].transcript.toLowerCase();
-voiceStatus.textContent="Usłyszano: "+text;
-for(let word in voiceMap){
-if(text.includes(word)){
-let color=voiceMap[word];
-selectedColor=color;
-cells.forEach(cell=>cell.style.backgroundColor=colors[color]);
+for(let col=0;col<9;col++){
+
+let charIndex=Math.floor((col+offset)/6);
+let char=text[charIndex%text.length];
+let fontCol=(col+offset)%6;
+
+if(fontCol<5){
+
+for(let row=0;row<7;row++){
+
+if(font[char] && font[char][row][fontCol]==="1"){
+
+let y=row+1; // wyśrodkowanie w pionie
+let index=y*9+col;
+
+let hue=(col*40+offset*10)%360;
+cells[index].style.backgroundColor=`hsl(${hue},100%,50%)`;
+
+}
+
+}
+
+}
+
+}
+
+offset++;
 await sendToLamp();
-break;
-}
-}
-};
+
+},150);
+
 }
 
-if(!listening){
-recognition.start();
-voiceBtn.textContent="Stop nasłuchiwania";
-voiceStatus.textContent="Nasłuchiwanie...";
-listening=true;
-}else{
-recognition.stop();
-voiceBtn.textContent="Start nasłuchiwania";
-voiceStatus.textContent="Zatrzymano";
-listening=false;
-}
-};
-
-/* TRYBY */
+/* EFEKTY */
 
 function rainbowMode(){
 let hue=0;
 setInterval(async()=>{
-for(let i=0;i<cells.length;i++){
-cells[i].style.backgroundColor=`hsl(${(hue+i*10)%360},100%,50%)`;
-}
+cells.forEach((c,i)=>{
+c.style.backgroundColor=`hsl(${(hue+i*10)%360},100%,50%)`;
+});
 hue+=5;
 await sendToLamp();
 },100);
@@ -261,57 +228,35 @@ await sendToLamp();
 function blinkMode(){
 let on=true;
 setInterval(async()=>{
-cells.forEach(cell=>{
-cell.style.backgroundColor=on?colors[selectedColor]:"#000000";
-});
+cells.forEach(c=>c.style.backgroundColor=on?"white":"black");
 on=!on;
 await sendToLamp();
-},500);
+},400);
 }
 
 function waveMode(){
-let offset=0;
+let t=0;
 setInterval(async()=>{
 for(let y=0;y<9;y++){
 for(let x=0;x<9;x++){
 let i=y*9+x;
-let brightness=Math.sin((x+offset)/2)*127+128;
-cells[i].style.backgroundColor=`rgb(${brightness},0,${255-brightness})`;
+let v=Math.sin((x+t)/2)*127+128;
+cells[i].style.backgroundColor=`rgb(${v},0,${255-v})`;
 }
 }
-offset+=0.5;
+t+=0.3;
 await sendToLamp();
 },100);
 }
 
 function pulseMode(){
-let bright=255; let down=true;
+let b=255; let d=true;
 setInterval(async()=>{
-for(let i=0;i<cells.length;i++){
-cells[i].style.backgroundColor=`rgb(${bright},0,0)`;
-}
-if(down) bright-=15; else bright+=15;
-if(bright<=20) down=false;
-if(bright>=255) down=true;
+cells.forEach(c=>c.style.backgroundColor=`rgb(${b},0,0)`);
+b+=d?-15:15;
+if(b<=20||b>=255)d=!d;
 await sendToLamp();
-},100);
-}
-
-function showText(){
-const text=" ZAPRASZAMY DO ZSE ";
-let position=0;
-setInterval(async()=>{
-for(let i=0;i<81;i++) cells[i].style.backgroundColor="#000000";
-for(let i=0;i<9;i++){
-let charIndex=(position+i)%text.length;
-let brightness=(text.charCodeAt(charIndex)%2)?255:0;
-for(let y=0;y<9;y++){
-cells[y*9+i].style.backgroundColor=brightness?"#00FF00":"#000000";
-}
-}
-position++;
-await sendToLamp();
-},300);
+},80);
 }
 
 </script>

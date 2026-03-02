@@ -77,6 +77,7 @@ button { padding:10px 15px; margin:5px; cursor:pointer;}
 <button onclick="waveMode()">Fale</button>
 <button onclick="pulseMode()">Pulsowanie</button>
 <button onclick="showText()">ZSE</button>
+<button onclick="audioVoiceMode()">Audio + Głos</button>
 </section>
 
 </main>
@@ -292,6 +293,50 @@ offset++;
 await sendToLamp();
 },150);
 }
+
+/* AUDIO + GŁOS (nowy tryb) */
+async function audioVoiceMode(){
+if(!navigator.mediaDevices) return alert("Brak obsługi mikrofonu");
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+const source = audioCtx.createMediaStreamSource(stream);
+const analyser = audioCtx.createAnalyser();
+analyser.fftSize=64;
+source.connect(analyser);
+const dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
+let recognition2;
+if(SpeechRecognition){
+recognition2=new SpeechRecognition();
+recognition2.lang="pl-PL";
+recognition2.continuous=true;
+recognition2.onresult=async(event)=>{
+let text=event.results[event.results.length-1][0].transcript.toUpperCase();
+cells.forEach(c=>c.style.backgroundColor="rgb(0,0,0)");
+for(let i=0;i<text.length && i<9;i++){
+let char=text[i];
+for(let row=0;row<7;row++){
+cells[row*9+i].style.backgroundColor="rgb(0,255,0)";
+}
+}
+await sendToLamp();
+};
+recognition2.start();
+}
+
+function updateAudio(){
+analyser.getByteFrequencyData(dataArray);
+for(let i=0;i<NUM_LEDS;i++){
+let v = dataArray[i%dataArray.length];
+cells[i].style.backgroundColor=`rgb(${v},${255-v},${v/2})`;
+}
+sendToLamp();
+requestAnimationFrame(updateAudio);
+}
+updateAudio();
+}
 </script>
+
 </body>
 </html>

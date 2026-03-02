@@ -115,19 +115,24 @@ btnMusic.onclick=()=>{showPage(musicPage);setActiveButton(btnMusic);}
 btnMods.onclick=()=>{showPage(modsPage);setActiveButton(btnMods);}
 showPage(connectionPage);
 
-/* BLUETOOTH */
+/* BLUETOOTH – WRÓCIŁ DO ORYGINAŁU */
 let writeCharacteristic;
 const SERVICE_UUID='12345678-1234-1234-1234-1234567890ab';
 const CHARACTERISTIC_UUID='87654321-4321-4321-4321-0987654321ba';
 
 document.getElementById("btnRequestBluetooth").onclick=async()=>{
 try{
-const device=await navigator.bluetooth.requestDevice({acceptAllDevices:true,optionalServices:[SERVICE_UUID]});
+const device=await navigator.bluetooth.requestDevice({
+acceptAllDevices:true,
+optionalServices:[SERVICE_UUID]
+});
 const server=await device.gatt.connect();
 const service=await server.getPrimaryService(SERVICE_UUID);
 writeCharacteristic=await service.getCharacteristic(CHARACTERISTIC_UUID);
 connStatus.textContent="Połączono";
-}catch(e){connStatus.textContent="Błąd: "+e;}
+}catch(e){
+connStatus.textContent="Błąd: "+e;
+}
 };
 
 /* GRID */
@@ -153,20 +158,32 @@ grid.appendChild(cell);
 cells.push(cell);
 }
 
-/* WYSYŁANIE */
+/* WYSYŁANIE – ORYGINALNE */
+const sendStatus=document.getElementById("sendStatus");
+document.getElementById("btnSendGrid").onclick=sendToLamp;
+
 async function sendToLamp(){
-if(!writeCharacteristic)return;
+if(!writeCharacteristic){
+sendStatus.textContent="Nie połączono";
+return;
+}
 let data=new Uint8Array(NUM_LEDS*3);
 for(let i=0;i<NUM_LEDS;i++){
-let m=cells[i].style.backgroundColor.match(/\d+/g);
-let r=m?+m[0]:0,g=m?+m[1]:0,b=m?+m[2]:0;
-data[i*3]=r;data[i*3+1]=g;data[i*3+2]=b;
+let rgb=parseRGB(cells[i].style.backgroundColor);
+data[i*3]=rgb.r;
+data[i*3+1]=rgb.g;
+data[i*3+2]=rgb.b;
 }
 await writeCharacteristic.writeValue(data);
+sendStatus.textContent="Wysłano do lampy";
 }
 
-/* ====== POPRAWIONY WYRAŹNY NAPIS ====== */
+function parseRGB(rgb){
+const m=rgb.match(/\d+/g);
+return{r:parseInt(m[0]),g:parseInt(m[1]),b:parseInt(m[2])};
+}
 
+/* WYRAŹNY NAPIS */
 function showText(){
 
 const text=" ZAPRASZAMY DO ZSE ";

@@ -76,7 +76,7 @@ button { padding:10px 15px; margin:5px; cursor:pointer;}
 <button onclick="blinkMode()">Miganie</button>
 <button onclick="waveMode()">Fale</button>
 <button onclick="pulseMode()">Pulsowanie</button>
-<button onclick="showText()">ZSE</button>
+<button onclick="showText()">ZAPRASZAMY DO ZSE</button>
 <button onclick="audioVoiceMode()">Audio + Głos</button>
 </section>
 
@@ -90,12 +90,10 @@ const btnConnect=document.getElementById('btnConnect');
 const btnGrid=document.getElementById('btnGrid');
 const btnMusic=document.getElementById('btnMusic');
 const btnMods=document.getElementById('btnMods');
-
 const connectionPage=document.getElementById('connectionPage');
 const gridPage=document.getElementById('gridPage');
 const musicPage=document.getElementById('musicPage');
 const modsPage=document.getElementById('modsPage');
-
 function showPage(page){
 connectionPage.style.display="none";
 gridPage.style.display="none";
@@ -103,12 +101,10 @@ musicPage.style.display="none";
 modsPage.style.display="none";
 page.style.display="block";
 }
-
 function setActiveButton(btn){
 [btnConnect,btnGrid,btnMusic,btnMods].forEach(b=>b.classList.remove("active"));
 btn.classList.add("active");
 }
-
 btnConnect.onclick=()=>{showPage(connectionPage);setActiveButton(btnConnect);}
 btnGrid.onclick=()=>{showPage(gridPage);setActiveButton(btnGrid);}
 btnMusic.onclick=()=>{showPage(musicPage);setActiveButton(btnMusic);}
@@ -119,7 +115,6 @@ showPage(connectionPage);
 let writeCharacteristic;
 const SERVICE_UUID='12345678-1234-1234-1234-1234567890ab';
 const CHARACTERISTIC_UUID='87654321-4321-4321-4321-0987654321ba';
-
 document.getElementById("btnRequestBluetooth").onclick=async()=>{
 try{
 const device=await navigator.bluetooth.requestDevice({acceptAllDevices:true, optionalServices:[SERVICE_UUID]});
@@ -135,7 +130,6 @@ const grid=document.getElementById("grid");
 const colors={red:"#FF0000",green:"#00FF00",blue:"#0000FF",yellow:"#FFFF00",purple:"#800080",orange:"#FFA500",pink:"#FFC0CB",white:"#FFFFFF",cyan:"#00FFFF",lime:"#32CD32",black:"#000000"};
 let selectedColor="red";
 let cells=[];
-
 document.querySelectorAll(".color-circle").forEach(el=>{
 el.onclick=()=>{
 document.querySelectorAll(".color-circle").forEach(c=>c.classList.remove("selected"));
@@ -143,7 +137,6 @@ el.classList.add("selected");
 selectedColor=el.id;
 };
 });
-
 for(let i=0;i<NUM_LEDS;i++){
 const cell=document.createElement("div");
 cell.className="cell";
@@ -156,7 +149,6 @@ cells.push(cell);
 /* WYSYŁANIE */
 const sendStatus=document.getElementById("sendStatus");
 document.getElementById("btnSendGrid").onclick=sendToLamp;
-
 async function sendToLamp(){
 if(!writeCharacteristic){sendStatus.textContent="Nie połączono"; return;}
 let data=new Uint8Array(NUM_LEDS*3);
@@ -169,7 +161,6 @@ data[i*3+2]=rgb.b;
 await writeCharacteristic.writeValue(data);
 sendStatus.textContent="Wysłano do lampy";
 }
-
 function parseRGB(rgb){
 const m=rgb.match(/\d+/g);
 return {r:parseInt(m[0]), g:parseInt(m[1]), b:parseInt(m[2])};
@@ -178,15 +169,11 @@ return {r:parseInt(m[0]), g:parseInt(m[1]), b:parseInt(m[2])};
 /* GŁOS */
 const voiceBtn=document.getElementById("btnVoice");
 const voiceStatus=document.getElementById("voiceStatus");
-
 const voiceMap={"czerwony":"red","zielony":"green","niebieski":"blue","żółty":"yellow","zolty":"yellow","fioletowy":"purple","pomarańczowy":"orange","różowy":"pink","rozowy":"pink","biały":"white","bialy":"white","turkusowy":"cyan","jasnozielony":"lime"};
-
 let recognition; let listening=false;
-
 voiceBtn.onclick=()=>{
 const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
 if(!SpeechRecognition){voiceStatus.textContent="Brak obsługi głosu"; return;}
-
 if(!recognition){
 recognition=new SpeechRecognition();
 recognition.lang="pl-PL";
@@ -205,60 +192,19 @@ break;
 }
 };
 }
-
 if(!listening){recognition.start(); voiceBtn.textContent="Stop nasłuchiwania"; voiceStatus.textContent="Nasłuchiwanie..."; listening=true;}
 else{recognition.stop(); voiceBtn.textContent="Start nasłuchiwania"; voiceStatus.textContent="Zatrzymano"; listening=false;}
 };
 
 /* TRYBY */
-function rainbowMode(){
-let hue=0;
-setInterval(async()=>{
-for(let i=0;i<cells.length;i++){cells[i].style.backgroundColor=`hsl(${(hue+i*10)%360},100%,50%)`;}
-hue+=5;
-await sendToLamp();
-},100);
-}
-
-function blinkMode(){
-let on=true;
-setInterval(async()=>{
-cells.forEach(cell=>{cell.style.backgroundColor=on?colors[selectedColor]:colors.black;});
-on=!on;
-await sendToLamp();
-},500);
-}
-
-function waveMode(){
-let offset=0;
-setInterval(async()=>{
-for(let y=0;y<9;y++){
-for(let x=0;x<9;x++){
-let i=y*9+x;
-let brightness=Math.sin((x+offset)/2)*127+128;
-cells[i].style.backgroundColor=`rgb(${brightness},0,${255-brightness})`;
-}
-}
-offset+=0.5;
-await sendToLamp();
-},100);
-}
-
-function pulseMode(){
-let bright=255; let down=true;
-setInterval(async()=>{
-for(let i=0;i<cells.length;i++){cells[i].style.backgroundColor=`rgb(${bright},0,0)`;}
-if(down) bright-=15; else bright+=15;
-if(bright<=20) down=false;
-if(bright>=255) down=true;
-await sendToLamp();
-},100);
-}
+function rainbowMode(){let hue=0; setInterval(async()=>{for(let i=0;i<cells.length;i++){cells[i].style.backgroundColor=`hsl(${(hue+i*10)%360},100%,50%)`;} hue+=5; await sendToLamp();},100);}
+function blinkMode(){let on=true; setInterval(async()=>{cells.forEach(cell=>{cell.style.backgroundColor=on?colors[selectedColor]:colors.black;}); on=!on; await sendToLamp();},500);}
+function waveMode(){let offset=0; setInterval(async()=>{for(let y=0;y<9;y++){for(let x=0;x<9;x++){let i=y*9+x; let brightness=Math.sin((x+offset)/2)*127+128; cells[i].style.backgroundColor=`rgb(${brightness},0,${255-brightness})`;}} offset+=0.5; await sendToLamp();},100);}
+function pulseMode(){let bright=255; let down=true; setInterval(async()=>{for(let i=0;i<cells.length;i++){cells[i].style.backgroundColor=`rgb(${bright},0,0)`;} if(down) bright-=15; else bright+=15; if(bright<=20) down=false; if(bright>=255) down=true; await sendToLamp();},100);}
 
 /* NAPIS ZSE WYRAŹNY */
 function showText(){
 const text=" ZAPRASZAMY DO ZSE ";
-let offset=0;
 const font={
 "Z":["11111","00001","00010","00100","01000","10000","11111"],
 "A":["01110","10001","10001","11111","10001","10001","10001"],
@@ -272,9 +218,9 @@ const font={
 "E":["11111","10000","10000","11110","10000","10000","11111"],
 " ":["00000","00000","00000","00000","00000","00000","00000"]
 };
-
+let offset=0;
 setInterval(async()=>{
-cells.forEach(c=>c.style.backgroundColor="rgb(0,0,0)");
+cells.forEach(c=>c.style.backgroundColor=colors.black);
 for(let col=0;col<9;col++){
 let charIndex=Math.floor((col+offset)/6);
 let char=text[charIndex%text.length];
@@ -284,7 +230,7 @@ for(let row=0;row<7;row++){
 if(font[char] && font[char][row][fontCol]==="1"){
 let y=row+1;
 let index=y*9+col;
-cells[index].style.backgroundColor="rgb(255,255,255)";
+cells[index].style.backgroundColor=colors.white;
 }
 }
 }
@@ -294,30 +240,30 @@ await sendToLamp();
 },150);
 }
 
-/* AUDIO + GŁOS (nowy tryb) */
+/* AUDIO + GŁOS z pełnymi kolorami */
 async function audioVoiceMode(){
 if(!navigator.mediaDevices) return alert("Brak obsługi mikrofonu");
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 const stream = await navigator.mediaDevices.getUserMedia({audio:true});
 const source = audioCtx.createMediaStreamSource(stream);
 const analyser = audioCtx.createAnalyser();
-analyser.fftSize=64;
+analyser.fftSize = 64;
 source.connect(analyser);
 const dataArray = new Uint8Array(analyser.frequencyBinCount);
 
-const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
+const SpeechRecognition = window.SpeechRecognition||window.webkitSpeechRecognition;
 let recognition2;
 if(SpeechRecognition){
-recognition2=new SpeechRecognition();
-recognition2.lang="pl-PL";
-recognition2.continuous=true;
-recognition2.onresult=async(event)=>{
-let text=event.results[event.results.length-1][0].transcript.toUpperCase();
-cells.forEach(c=>c.style.backgroundColor="rgb(0,0,0)");
+recognition2 = new SpeechRecognition();
+recognition2.lang = "pl-PL";
+recognition2.continuous = true;
+recognition2.onresult = async(event)=>{
+let text = event.results[event.results.length-1][0].transcript.toUpperCase();
+cells.forEach(c=>c.style.backgroundColor="#000000");
 for(let i=0;i<text.length && i<9;i++){
 let char=text[i];
 for(let row=0;row<7;row++){
-cells[row*9+i].style.backgroundColor="rgb(0,255,0)";
+cells[row*9+i].style.backgroundColor=`hsl(${(row*40+i*30)%360},100%,50%)`;
 }
 }
 await sendToLamp();
@@ -329,7 +275,9 @@ function updateAudio(){
 analyser.getByteFrequencyData(dataArray);
 for(let i=0;i<NUM_LEDS;i++){
 let v = dataArray[i%dataArray.length];
-cells[i].style.backgroundColor=`rgb(${v},${255-v},${v/2})`;
+let hue = (i*15 + v*2) % 360;
+let light = 40 + v/2; 
+cells[i].style.backgroundColor=`hsl(${hue},100%,${light}%)`;
 }
 sendToLamp();
 requestAnimationFrame(updateAudio);

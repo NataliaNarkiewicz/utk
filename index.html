@@ -59,9 +59,10 @@ button { padding:10px 15px; margin:5px; cursor:pointer;}
 <div id="grid"></div>
 
 <button id="btnSendGrid">Wyślij do lampy</button>
-<button onclick="showText()">Napis ZSE</button>
+<button id="btnVoice">🎤 Start nasłuchiwania</button>
 
 <p id="sendStatus"></p>
+<p id="voiceStatus"></p>
 
 </section>
 
@@ -75,6 +76,7 @@ button { padding:10px 15px; margin:5px; cursor:pointer;}
 <button onclick="blinkMode()">Miganie</button>
 <button onclick="waveMode()">Fale</button>
 <button onclick="pulseMode()">Pulsowanie</button>
+<button onclick="showText()">ZSE</button>
 </section>
 
 </main>
@@ -130,31 +132,40 @@ connStatus.textContent="Połączono";
 
 /* GRID */
 const grid=document.getElementById("grid");
+const colors={red:"#FF0000",green:"#00FF00",blue:"#0000FF",yellow:"#FFFF00",purple:"#800080",orange:"#FFA500",pink:"#FFC0CB",white:"#FFFFFF",cyan:"#00FFFF",lime:"#32CD32",black:"#000000"};
+let selectedColor="red";
 let cells=[];
+
+document.querySelectorAll(".color-circle").forEach(el=>{
+el.onclick=()=>{
+document.querySelectorAll(".color-circle").forEach(c=>c.classList.remove("selected"));
+el.classList.add("selected");
+selectedColor=el.id;
+};
+});
+
 for(let i=0;i<NUM_LEDS;i++){
 const cell=document.createElement("div");
 cell.className="cell";
+cell.style.backgroundColor=colors.black;
+cell.onclick=()=>{cell.style.backgroundColor=colors[selectedColor];};
 grid.appendChild(cell);
 cells.push(cell);
 }
 
 /* WYSYŁANIE */
 async function sendToLamp(){
-if(!writeCharacteristic) return;
+if(!writeCharacteristic)return;
 let data=new Uint8Array(NUM_LEDS*3);
 for(let i=0;i<NUM_LEDS;i++){
-let rgb=getRGB(cells[i].style.backgroundColor);
-data[i*3]=rgb.r; data[i*3+1]=rgb.g; data[i*3+2]=rgb.b;
+let m=cells[i].style.backgroundColor.match(/\d+/g);
+let r=m?+m[0]:0,g=m?+m[1]:0,b=m?+m[2]:0;
+data[i*3]=r;data[i*3+1]=g;data[i*3+2]=b;
 }
 await writeCharacteristic.writeValue(data);
 }
 
-function getRGB(color){
-let m=color.match(/\d+/g);
-return m?{r:+m[0],g:+m[1],b:+m[2]}:{r:0,g:0,b:0};
-}
-
-/* ======= PROFESJONALNY NAPIS 9x9 ======= */
+/* ====== POPRAWIONY WYRAŹNY NAPIS ====== */
 
 function showText(){
 
@@ -176,33 +187,22 @@ const font={
 };
 
 setInterval(async()=>{
-
 cells.forEach(c=>c.style.backgroundColor="black");
 
 for(let col=0;col<9;col++){
-
 let charIndex=Math.floor((col+offset)/6);
 let char=text[charIndex%text.length];
 let fontCol=(col+offset)%6;
 
 if(fontCol<5){
-
 for(let row=0;row<7;row++){
-
 if(font[char] && font[char][row][fontCol]==="1"){
-
-let y=row+1; // wyśrodkowanie w pionie
+let y=row+1;
 let index=y*9+col;
-
-let hue=(col*40+offset*10)%360;
-cells[index].style.backgroundColor=`hsl(${hue},100%,50%)`;
-
+cells[index].style.backgroundColor="#FFFFFF";
 }
-
 }
-
 }
-
 }
 
 offset++;
@@ -210,53 +210,6 @@ await sendToLamp();
 
 },150);
 
-}
-
-/* EFEKTY */
-
-function rainbowMode(){
-let hue=0;
-setInterval(async()=>{
-cells.forEach((c,i)=>{
-c.style.backgroundColor=`hsl(${(hue+i*10)%360},100%,50%)`;
-});
-hue+=5;
-await sendToLamp();
-},100);
-}
-
-function blinkMode(){
-let on=true;
-setInterval(async()=>{
-cells.forEach(c=>c.style.backgroundColor=on?"white":"black");
-on=!on;
-await sendToLamp();
-},400);
-}
-
-function waveMode(){
-let t=0;
-setInterval(async()=>{
-for(let y=0;y<9;y++){
-for(let x=0;x<9;x++){
-let i=y*9+x;
-let v=Math.sin((x+t)/2)*127+128;
-cells[i].style.backgroundColor=`rgb(${v},0,${255-v})`;
-}
-}
-t+=0.3;
-await sendToLamp();
-},100);
-}
-
-function pulseMode(){
-let b=255; let d=true;
-setInterval(async()=>{
-cells.forEach(c=>c.style.backgroundColor=`rgb(${b},0,0)`);
-b+=d?-15:15;
-if(b<=20||b>=255)d=!d;
-await sendToLamp();
-},80);
 }
 
 </script>

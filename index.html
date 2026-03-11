@@ -2,55 +2,86 @@
 <html lang="pl">
 <head>
 <meta charset="UTF-8">
-<title>Matches</title>
+<title>Mecze</title>
 
 <style>
 
 *{
 box-sizing:border-box;
+margin:0;
+padding:0;
 }
 
 body{
-margin:0;
-font-family:Segoe UI, sans-serif;
-background:#0a0a0f;
+font-family:Segoe UI, Arial;
+background:#050507;
 color:white;
+min-height:100vh;
+position:relative;
+overflow-x:hidden;
 }
+
+/* Rozmazane logo w tle */
+
+body::before{
+content:"";
+position:fixed;
+top:50%;
+left:50%;
+transform:translate(-50%,-50%);
+width:700px;
+height:700px;
+background:url("zse-logo.png") center/contain no-repeat;
+opacity:0.05;
+filter:blur(8px);
+pointer-events:none;
+}
+
+/* kontener */
 
 .container{
 width:1000px;
 margin:auto;
-padding:40px;
+padding:50px 20px;
 }
 
-.title{
-font-size:28px;
-margin:40px 0 20px 0;
-color:#00eaff;
-text-shadow:0 0 10px #00eaff;
+/* nagłówki sekcji */
+
+.section-title{
+font-size:26px;
+margin-bottom:20px;
+letter-spacing:1px;
+color:#00e0ff;
+border-left:3px solid #00e0ff;
+padding-left:12px;
 }
+
+/* lista meczów */
 
 .matches{
 display:grid;
-gap:16px;
+gap:14px;
+margin-bottom:50px;
 }
 
+/* karta meczu */
+
 .match{
-background:#111118;
-border:1px solid #1f1f2e;
+background:#0d0d14;
+border:1px solid #1a1a24;
 border-radius:10px;
-padding:20px;
+padding:18px 22px;
 cursor:pointer;
 transition:0.25s;
-position:relative;
-overflow:hidden;
 }
 
 .match:hover{
-border-color:#00eaff;
-box-shadow:0 0 15px #00eaff55;
+border-color:#00e0ff;
+box-shadow:0 0 15px rgba(0,224,255,0.25);
 transform:translateY(-2px);
 }
+
+/* rząd drużyn */
 
 .row{
 display:flex;
@@ -64,50 +95,56 @@ font-weight:600;
 }
 
 .time{
-color:#9b9bff;
 font-size:14px;
+color:#8f9bff;
 }
+
+/* szczegóły meczu */
 
 .details{
 display:none;
 margin-top:15px;
 padding-top:15px;
-border-top:1px solid #222;
-color:#aaa;
+border-top:1px solid #1a1a24;
 }
+
+/* statystyki */
 
 .stats{
 display:flex;
-gap:20px;
-margin-top:8px;
+gap:16px;
 }
 
 .stat{
-background:#0f0f16;
+background:#09090f;
+border:1px solid #1c1c28;
 padding:8px 12px;
 border-radius:6px;
-border:1px solid #222;
+font-size:14px;
 }
 
 .stat span{
-color:#00eaff;
+color:#00e0ff;
 font-weight:bold;
 }
 
 </style>
 </head>
+
 <body>
 
 <div class="container">
 
-<div class="title">⚡ Nadchodzące mecze</div>
+<div class="section-title">
+Nadchodzące mecze
+</div>
 
 <div class="matches">
 
 <div class="match">
 <div class="row">
 <div class="team">Fire Squad</div>
-<div class="time">21.03 • 18:00</div>
+<div class="time">21.03.2026 • 18:00</div>
 <div class="team">Night Wolves</div>
 </div>
 </div>
@@ -115,7 +152,7 @@ font-weight:bold;
 <div class="match">
 <div class="row">
 <div class="team">Sky Hunters</div>
-<div class="time">22.03 • 19:30</div>
+<div class="time">22.03.2026 • 19:30</div>
 <div class="team">Shadow Team</div>
 </div>
 </div>
@@ -123,7 +160,9 @@ font-weight:bold;
 </div>
 
 
-<div class="title">🏆 Zakończone mecze</div>
+<div class="section-title">
+Zakończone mecze
+</div>
 
 <div class="matches">
 
@@ -131,7 +170,7 @@ font-weight:bold;
 
 <div class="row">
 <div class="team">Fire Squad</div>
-<div class="time">15.03 • 18:00</div>
+<div class="time">18.03.2026 • 18:00</div>
 <div class="team">Shadow Team</div>
 </div>
 
@@ -152,7 +191,7 @@ font-weight:bold;
 
 <div class="row">
 <div class="team">Night Wolves</div>
-<div class="time">14.03 • 20:00</div>
+<div class="time">17.03.2026 • 20:00</div>
 <div class="team">Sky Hunters</div>
 </div>
 
@@ -172,16 +211,20 @@ font-weight:bold;
 
 </div>
 
+
 <script>
 
 function toggle(el){
-let d = el.querySelector(".details");
-if(!d) return;
 
-d.style.display =
-d.style.display === "block"
+let details = el.querySelector(".details");
+
+if(!details) return;
+
+details.style.display =
+details.style.display === "block"
 ? "none"
 : "block";
+
 }
 
 </script>

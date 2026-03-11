@@ -3,10 +3,9 @@
 <head>
 
 <meta charset="UTF-8">
-<title>Turniej</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mecze</title>
 
-<link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.css" rel="stylesheet">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 
 <style>
 
@@ -18,28 +17,43 @@ color:white;
 }
 
 header{
-background:linear-gradient(90deg,#00ffc3,#00997a);
-padding:20px;
 text-align:center;
-font-size:24px;
+padding:25px;
+font-size:26px;
 font-weight:bold;
+background:linear-gradient(90deg,#00ffc3,#00997a);
 color:#022;
 }
 
+.tabs{
+display:flex;
+justify-content:center;
+gap:10px;
+padding:20px;
+}
+
+.tabs button{
+padding:10px 20px;
+border:none;
+border-radius:20px;
+background:#0c2a26;
+color:#00ffc3;
+font-weight:bold;
+cursor:pointer;
+}
+
 .container{
-max-width:1000px;
+max-width:800px;
 margin:auto;
 padding:20px;
 }
 
 .match{
-display:flex;
-align-items:center;
-justify-content:space-between;
 background:#0c2a26;
-padding:15px;
-margin-bottom:10px;
+padding:20px;
+margin-bottom:12px;
 border-radius:10px;
+cursor:pointer;
 transition:0.2s;
 }
 
@@ -48,51 +62,25 @@ transform:scale(1.02);
 box-shadow:0 0 10px #00ffc366;
 }
 
-.team{
-display:flex;
-align-items:center;
-gap:10px;
-cursor:pointer;
+.teams{
+font-size:18px;
+font-weight:bold;
 }
 
-.logo{
-width:40px;
-height:40px;
-border-radius:50%;
+.date{
+opacity:0.7;
+margin-top:5px;
 }
 
 .score{
 font-size:20px;
 font-weight:bold;
+margin-top:10px;
 }
 
-.live{
-background:#ff0033;
-padding:4px 8px;
-border-radius:5px;
-font-size:12px;
-margin-left:10px;
-}
-
-.calendar{
-margin-top:40px;
-}
-
-.admin{
-margin-top:40px;
-background:#0c2a26;
-padding:20px;
-border-radius:10px;
-}
-
-input{
-padding:8px;
-margin:5px;
-}
-
-button{
-padding:8px 14px;
-cursor:pointer;
+.winner{
+color:#00ffc3;
+font-weight:bold;
 }
 
 .modal{
@@ -111,6 +99,13 @@ justify-content:center;
 background:#0c2a26;
 padding:30px;
 border-radius:10px;
+max-width:400px;
+width:90%;
+}
+
+.close{
+margin-top:20px;
+cursor:pointer;
 }
 
 </style>
@@ -119,61 +114,28 @@ border-radius:10px;
 
 <body>
 
-<header>TURNIEJ</header>
+<header>MECZE</header>
 
-<div class="container">
-
-<h2>Mecze</h2>
-
-<div id="matches"></div>
-
-<div class="calendar">
-
-<h2>Kalendarz</h2>
-
-<div id="calendar"></div>
-
+<div class="tabs">
+<button onclick="showMatches('upcoming')">NADCHODZĄCE</button>
+<button onclick="showMatches('finished')">ZAKOŃCZONE</button>
 </div>
 
-<div class="admin">
+<div class="container" id="matches"></div>
 
-<h2>Panel Admina</h2>
-
-<input id="team1" placeholder="Team 1">
-<input id="team2" placeholder="Team 2">
-
-<input id="logo1" placeholder="Logo 1 URL">
-<input id="logo2" placeholder="Logo 2 URL">
-
-<input id="score1" placeholder="Score 1">
-<input id="score2" placeholder="Score 2">
-
-<input id="date" type="datetime-local">
-
-<label>LIVE</label>
-<input type="checkbox" id="live">
-
-<button onclick="addMatch()">Dodaj mecz</button>
-
-</div>
-
-</div>
-
-<div class="modal" id="teamModal">
+<div class="modal" id="modal">
 
 <div class="modal-content">
 
-<h2 id="teamName"></h2>
+<h2 id="modalTeams"></h2>
 
-<div id="teamMatches"></div>
+<div id="stats"></div>
 
-<button onclick="closeModal()">Zamknij</button>
-
-</div>
+<div class="close" onclick="closeModal()">Zamknij</div>
 
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
+</div>
 
 <script type="module">
 
@@ -182,8 +144,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 import {
 getFirestore,
 collection,
-getDocs,
-addDoc
+getDocs
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -201,112 +162,106 @@ const app = initializeApp(firebaseConfig);
 
 const db = getFirestore(app);
 
-const matchesDiv=document.getElementById("matches");
+let matches=[];
 
 async function loadMatches(){
 
-matchesDiv.innerHTML="";
+const querySnapshot = await getDocs(collection(db,"matches"));
 
-const querySnapshot=await getDocs(collection(db,"matches"));
-
-let events=[];
+matches=[];
 
 querySnapshot.forEach(doc=>{
+matches.push(doc.data());
+});
 
-let m=doc.data();
+showMatches("upcoming");
 
-let html=`
+}
 
-<div class="match">
+window.showMatches=function(type){
 
-<div class="team" onclick="openTeam('${m.team1}')">
+const container=document.getElementById("matches");
 
-<img src="${m.logo1}" class="logo">
+container.innerHTML="";
 
-${m.team1}
+matches.forEach(m=>{
 
+if(type==="upcoming" && !m.finished){
+
+container.innerHTML+=`
+
+<div class="match" onclick='openMatch(${JSON.stringify(m)})'>
+
+<div class="teams">
+${m.team1} vs ${m.team2}
 </div>
 
-<div>
-
-<span class="score">${m.score1} : ${m.score2}</span>
-
-${m.live ? '<span class="live">LIVE</span>' : ''}
-
-</div>
-
-<div class="team" onclick="openTeam('${m.team2}')">
-
-${m.team2}
-
-<img src="${m.logo2}" class="logo">
-
+<div class="date">
+${new Date(m.date).toLocaleString()}
 </div>
 
 </div>
 
 `;
 
-matchesDiv.innerHTML+=html;
+}
 
-events.push({
+if(type==="finished" && m.finished){
 
-title:`${m.team1} vs ${m.team2}`,
-start:new Date(m.date)
+let winner=m.score1>m.score2?m.team1:m.team2;
 
-});
+container.innerHTML+=`
 
-});
+<div class="match" onclick='openMatch(${JSON.stringify(m)})'>
 
-calendar.removeAllEvents();
-calendar.addEventSource(events);
+<div class="teams">
+${m.team1} vs ${m.team2}
+</div>
+
+<div class="score">
+${m.score1} : ${m.score2}
+</div>
+
+<div class="winner">
+Wygrał: ${winner}
+</div>
+
+</div>
+
+`;
 
 }
 
-window.addMatch=async function(){
-
-await addDoc(collection(db,"matches"),{
-
-team1:document.getElementById("team1").value,
-team2:document.getElementById("team2").value,
-
-logo1:document.getElementById("logo1").value,
-logo2:document.getElementById("logo2").value,
-
-score1:Number(document.getElementById("score1").value),
-score2:Number(document.getElementById("score2").value),
-
-date:new Date(document.getElementById("date").value),
-
-live:document.getElementById("live").checked
-
 });
 
-loadMatches();
+}
 
-};
+window.openMatch=function(m){
 
-window.openTeam=function(team){
+document.getElementById("modal").style.display="flex";
 
-document.getElementById("teamName").innerText=team;
+document.getElementById("modalTeams").innerText=
+m.team1+" vs "+m.team2;
 
-document.getElementById("teamModal").style.display="flex";
+document.getElementById("stats").innerHTML=`
 
-};
+<p>Zabójstwa ${m.team1}: ${m.kills1}</p>
+
+<p>Zabójstwa ${m.team2}: ${m.kills2}</p>
+
+<p>Asysty ${m.team1}: ${m.assists1}</p>
+
+<p>Asysty ${m.team2}: ${m.assists2}</p>
+
+`;
+
+}
 
 window.closeModal=function(){
 
-document.getElementById("teamModal").style.display="none";
+document.getElementById("modal").style.display="none";
 
-};
-
-let calendar=new FullCalendar.Calendar(document.getElementById("calendar"),{
-
-initialView:"dayGridMonth"
-
-});
-
-calendar.render();
+}
 
 loadMatches();
 

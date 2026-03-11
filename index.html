@@ -1,61 +1,116 @@
 <!DOCTYPE html>
 <html lang="pl">
 <head>
+
 <meta charset="UTF-8">
-<title>Mecze</title>
+<title>Turniej</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.css" rel="stylesheet">
 
 <style>
 
 body{
-background:#031e1b;
-color:#00ffc8;
-font-family:Arial;
 margin:0;
+font-family:Arial;
+background:#071a17;
+color:white;
 }
 
-.app{
-max-width:420px;
+header{
+background:linear-gradient(90deg,#00ffc3,#00997a);
+padding:20px;
+text-align:center;
+font-size:24px;
+font-weight:bold;
+color:#022;
+}
+
+.container{
+max-width:1000px;
 margin:auto;
 padding:20px;
 }
 
-h1{
-text-align:center;
-}
-
-.tabs{
+.match{
 display:flex;
-gap:10px;
-margin-bottom:20px;
+align-items:center;
+justify-content:space-between;
+background:#0c2a26;
+padding:15px;
+margin-bottom:10px;
+border-radius:10px;
+transition:0.2s;
 }
 
-.tabs button{
-flex:1;
-background:#06332d;
-border:none;
-padding:10px;
-color:#00ffc8;
+.match:hover{
+transform:scale(1.02);
+box-shadow:0 0 10px #00ffc366;
+}
+
+.team{
+display:flex;
+align-items:center;
+gap:10px;
 cursor:pointer;
 }
 
-.tabs button:hover{
-background:#0c4b42;
+.logo{
+width:40px;
+height:40px;
+border-radius:50%;
 }
 
-.match{
-background:#0b3a33;
-padding:15px;
-margin-bottom:10px;
-border-radius:6px;
-}
-
-.teams{
-font-size:18px;
+.score{
+font-size:20px;
 font-weight:bold;
 }
 
-.time{
-opacity:0.7;
+.live{
+background:#ff0033;
+padding:4px 8px;
+border-radius:5px;
+font-size:12px;
+margin-left:10px;
+}
+
+.calendar{
+margin-top:40px;
+}
+
+.admin{
+margin-top:40px;
+background:#0c2a26;
+padding:20px;
+border-radius:10px;
+}
+
+input{
+padding:8px;
+margin:5px;
+}
+
+button{
+padding:8px 14px;
+cursor:pointer;
+}
+
+.modal{
+position:fixed;
+top:0;
+left:0;
+width:100%;
+height:100%;
+background:#000000cc;
+display:none;
+align-items:center;
+justify-content:center;
+}
+
+.modal-content{
+background:#0c2a26;
+padding:30px;
+border-radius:10px;
 }
 
 </style>
@@ -64,85 +119,196 @@ opacity:0.7;
 
 <body>
 
-<div class="app">
+<header>TURNIEJ</header>
 
-<h1>MECZE</h1>
+<div class="container">
 
-<div class="tabs">
-<button onclick="showMatches('upcoming')">NADCHODZĄCE</button>
-<button onclick="showMatches('finished')">ZAKOŃCZONE</button>
-<button onclick="showMatches('cancelled')">ANULOWANE</button>
-</div>
+<h2>Mecze</h2>
 
 <div id="matches"></div>
 
+<div class="calendar">
+
+<h2>Kalendarz</h2>
+
+<div id="calendar"></div>
+
 </div>
 
-<script>
+<div class="admin">
 
-let matches = []
+<h2>Panel Admina</h2>
+
+<input id="team1" placeholder="Team 1">
+<input id="team2" placeholder="Team 2">
+
+<input id="logo1" placeholder="Logo 1 URL">
+<input id="logo2" placeholder="Logo 2 URL">
+
+<input id="score1" placeholder="Score 1">
+<input id="score2" placeholder="Score 2">
+
+<input id="date" type="datetime-local">
+
+<label>LIVE</label>
+<input type="checkbox" id="live">
+
+<button onclick="addMatch()">Dodaj mecz</button>
+
+</div>
+
+</div>
+
+<div class="modal" id="teamModal">
+
+<div class="modal-content">
+
+<h2 id="teamName"></h2>
+
+<div id="teamMatches"></div>
+
+<button onclick="closeModal()">Zamknij</button>
+
+</div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
+
+<script type="module">
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+
+import {
+getFirestore,
+collection,
+getDocs,
+addDoc
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+const firebaseConfig = {
+
+apiKey:"API_KEY",
+authDomain:"PROJECT.firebaseapp.com",
+projectId:"PROJECT",
+storageBucket:"PROJECT.appspot.com",
+messagingSenderId:"ID",
+appId:"APP_ID"
+
+};
+
+const app = initializeApp(firebaseConfig);
+
+const db = getFirestore(app);
+
+const matchesDiv=document.getElementById("matches");
 
 async function loadMatches(){
 
-let res = await fetch("/api/mecze")
-matches = await res.json()
+matchesDiv.innerHTML="";
 
-showMatches("upcoming")
+const querySnapshot=await getDocs(collection(db,"matches"));
 
-}
+let events=[];
 
-function formatDate(seconds){
+querySnapshot.forEach(doc=>{
 
-let date = new Date(seconds*1000)
+let m=doc.data();
 
-return date.toLocaleDateString()+" "+
-date.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})
+let html=`
 
-}
-
-function showMatches(type){
-
-let container = document.getElementById("matches")
-container.innerHTML=""
-
-matches.forEach(m=>{
-
-if(type==="upcoming" && !m.zakonczone && !m.anulowane){
-
-renderMatch(m)
-
-}
-
-if(type==="finished" && m.zakonczone){
-
-renderMatch(m)
-
-}
-
-if(type==="cancelled" && m.anulowane){
-
-renderMatch(m)
-
-}
-
-})
-
-}
-
-function renderMatch(m){
-
-let container = document.getElementById("matches")
-
-container.innerHTML += `
 <div class="match">
-<div class="teams">${m.team1} vs ${m.team2}</div>
-<div class="time">${formatDate(m.data_meczu._seconds)}</div>
+
+<div class="team" onclick="openTeam('${m.team1}')">
+
+<img src="${m.logo1}" class="logo">
+
+${m.team1}
+
 </div>
-`
+
+<div>
+
+<span class="score">${m.score1} : ${m.score2}</span>
+
+${m.live ? '<span class="live">LIVE</span>' : ''}
+
+</div>
+
+<div class="team" onclick="openTeam('${m.team2}')">
+
+${m.team2}
+
+<img src="${m.logo2}" class="logo">
+
+</div>
+
+</div>
+
+`;
+
+matchesDiv.innerHTML+=html;
+
+events.push({
+
+title:`${m.team1} vs ${m.team2}`,
+start:new Date(m.date)
+
+});
+
+});
+
+calendar.removeAllEvents();
+calendar.addEventSource(events);
 
 }
 
-loadMatches()
+window.addMatch=async function(){
+
+await addDoc(collection(db,"matches"),{
+
+team1:document.getElementById("team1").value,
+team2:document.getElementById("team2").value,
+
+logo1:document.getElementById("logo1").value,
+logo2:document.getElementById("logo2").value,
+
+score1:Number(document.getElementById("score1").value),
+score2:Number(document.getElementById("score2").value),
+
+date:new Date(document.getElementById("date").value),
+
+live:document.getElementById("live").checked
+
+});
+
+loadMatches();
+
+};
+
+window.openTeam=function(team){
+
+document.getElementById("teamName").innerText=team;
+
+document.getElementById("teamModal").style.display="flex";
+
+};
+
+window.closeModal=function(){
+
+document.getElementById("teamModal").style.display="none";
+
+};
+
+let calendar=new FullCalendar.Calendar(document.getElementById("calendar"),{
+
+initialView:"dayGridMonth"
+
+});
+
+calendar.render();
+
+loadMatches();
 
 </script>
 

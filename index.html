@@ -103,15 +103,17 @@ body::before {
 /* Statystyki */
 .stats {
   display: flex;
+  flex-wrap: wrap;
   gap: 16px;
 }
 
 .stat {
   background: #111;
   border: 1px solid #222;
-  padding: 8px 12px;
+  padding: 10px 14px;
   border-radius: 6px;
   font-size: 14px;
+  width: 180px;
 }
 
 .stat span {
@@ -124,68 +126,111 @@ body::before {
 <body>
 <div class="container">
 
-  <!-- Nadchodzące mecze -->
   <div class="section-title">Nadchodzące mecze</div>
-  <div class="matches">
-    <div class="match">
-      <div class="row">
-        <div class="team">Grupa 1</div>
-        <div class="time">21.03.2026 • 18:00 (data)</div>
-        <div class="team">grupa 2</div>
-      </div>
-    </div>
+  <div id="nadchodzace" class="matches"></div>
 
-    <div class="match">
-      <div class="row">
-        <div class="team">grupa 3</div>
-        <div class="time">22.03.2026 • 19:30</div>
-        <div class="team">grupa 4</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Zakończone mecze -->
   <div class="section-title">Zakończone mecze</div>
-  <div class="matches">
-    <div class="match" onclick="toggle(this)">
-      <div class="row">
-        <div class="team">Grupa 1</div>
-        <div class="time">18.03.2026 • 18:00</div>
-        <div class="team">Grupa 2</div>
-      </div>
-      <div class="details">
-        <div class="stats">
-          <div class="stat">Kills: <span>42</span></div>
-          <div class="stat">Deaths: <span>30</span></div>
-          <div class="stat">Assists: <span>11</span></div>
-        </div>
-      </div>
-    </div>
-
-    <div class="match" onclick="toggle(this)">
-      <div class="row">
-        <div class="team">Grupa 3</div>
-        <div class="time">17.03.2026 • 20:00</div>
-        <div class="team"> Grupa 4</div>
-      </div>
-      <div class="details">
-        <div class="stats">
-          <div class="stat">Kills: <span>37</span></div>
-          <div class="stat">Deaths: <span>33</span></div>
-          <div class="stat">Assists: <span>9</span></div>
-        </div>
-      </div>
-    </div>
-  </div>
+  <div id="zakonczone" class="matches"></div>
 
 </div>
 
 <script>
+/* TWOJA BAZA DANYCH */
+const mecze = [
+  {
+    "id": "A_B",
+    "team1": "A",
+    "team2": "B",
+    "data_meczu": {
+      "_seconds": 1772535600,
+      "_nanoseconds": 0
+    },
+    "anulowane": false,
+    "zakonczone": true,
+    "statystyki": [
+      {
+        "id": "gracz",
+        "zabójstwa": 0,
+        "asysty": 0,
+        "zgony": 0,
+        "MvP": 0
+      },
+      {
+        "id": "nowy_gracz",
+        "MvP": 0,
+        "zabójstwa": 0,
+        "asysty": 0,
+        "zgony": 0
+      }
+    ]
+  }
+];
+
+/* Formatowanie daty Firestore */
+function formatDate(seconds) {
+  const d = new Date(seconds * 1000);
+  return d.toLocaleDateString("pl-PL") + " • " + d.toLocaleTimeString("pl-PL", {
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+}
+
+/* Generowanie HTML meczu */
+function generujMecz(mecz) {
+  const data = formatDate(mecz.data_meczu._seconds);
+
+  let statHTML = "";
+  if (mecz.zakonczone) {
+    statHTML = `
+      <div class="details">
+        <div class="stats">
+          ${mecz.statystyki.map(s => `
+            <div class="stat">
+              <b>${s.id}</b><br>
+              Zabójstwa: <span>${s.zabójstwa}</span><br>
+              Zgony: <span>${s.zgony}</span><br>
+              Asysty: <span>${s.asysty}</span><br>
+              MVP: <span>${s.MvP}</span>
+            </div>
+          `).join("")}
+        </div>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="match" onclick="toggle(this)">
+      <div class="row">
+        <div class="team">${mecz.team1}</div>
+        <div class="time">${data}</div>
+        <div class="team">${mecz.team2}</div>
+      </div>
+      ${statHTML}
+    </div>
+  `;
+}
+
+/* Wczytywanie meczów */
+function zaladujMecze() {
+  const nad = document.getElementById("nadchodzace");
+  const zak = document.getElementById("zakonczone");
+
+  mecze.forEach(m => {
+    const html = generujMecz(m);
+    if (m.zakonczone) zak.innerHTML += html;
+    else nad.innerHTML += html;
+  });
+}
+
+zaladujMecze();
+
+/* Rozwijanie statystyk */
 function toggle(el) {
   const details = el.querySelector(".details");
   if (!details) return;
   details.style.display = details.style.display === "block" ? "none" : "block";
 }
 </script>
+
 </body>
 </html>
